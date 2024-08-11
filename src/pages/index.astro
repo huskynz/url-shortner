@@ -1,23 +1,25 @@
+---
+import { predefinedUrls } from '../lib/rurl.ts';
+
+// Define the name to exclude
+const excludeName = 'panel';
+
+// Convert the predefinedUrls object into an array of [name, url] pairs and filter out the excluded name
+const urlEntries = Object.entries(predefinedUrls).filter(([name]) => name !== excludeName);
+---
+
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Redirecting...</title>
-  <script>
-    // Function to perform the redirect after a delay
-    function delayedRedirect() {
-      // Delay for 15 seconds (15000 milliseconds)
-      setTimeout(() => {
-        // Redirect to the new location
-        window.location.href = 'https://www.husky.nz';
-      }, 15000);
-    }
-
-    // Call the function when the page loads
-    window.onload = delayedRedirect;
-  </script>
+  <title>Available Locations</title>
 </head>
 <body>
-  <p>Redirecting to <a href="https://www.husky.nz">https://www.husky.nz</a> in 15 seconds... due to no location provided</p>
+  <h1>Available Locations</h1>
+  <p>You can use the valid locations below:</p>
+  <ul>
+    {urlEntries.map(([name, url]) => (
+      <li>{name}: <a href={url} target="_blank" rel="noopener noreferrer">{url}</a></li>
+    ))}
+  </ul>
 </body>
 </html>
-
