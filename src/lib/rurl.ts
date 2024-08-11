@@ -10,5 +10,6 @@ export const predefinedUrls: PredefinedUrls = {
     youtube: 'https://www.youtube.com/@huskynz',
     ghm: 'https://github.com/huskynz/10',
     m: 'https://www.husky.nz',
-    blog: 'https://www.husky.nz/blog'
+    blog: 'https://www.husky.nz/blog',
+    sh: 'https://panel.serverhorse.com/'
 };
