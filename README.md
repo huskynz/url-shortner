@@ -1,0 +1,1 @@
+This repo is a very simple URL redrict server written in astro js and is used to power https://hnz.li
