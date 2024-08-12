@@ -1,48 +1,18 @@
 ---
-import { predefinedUrls } from '../lib/rurl.ts';
-
-// Define the name to exclude
-const excludeName = 'panel';
-
-// Convert the predefinedUrls object into an array of [name, url] pairs and filter out the excluded name
-const urlEntries = Object.entries(predefinedUrls).filter(([name]) => name !== excludeName);
+// Perform the redirection
+return new Response(null, {
+    status: 302,
+    headers: {
+      Location: "https://www.husky.nz",
+    }})
 ---
 
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Available Locations</title>
-  <script>
-    // Function to perform the redirect after a delay
-    function delayedRedirect() {
-      const countdownElement = document.getElementById('countdown');
-      let timeLeft = 15; // 15 seconds countdown
-
-      // Update the countdown every second
-      const countdownInterval = setInterval(() => {
-        if (timeLeft <= 0) {
-          clearInterval(countdownInterval);
-          // Redirect when the countdown reaches zero
-          window.location.href = 'https://www.husky.nz'; // Replace with your redirect URL
-        } else {
-          countdownElement.textContent = `Redirecting in ${timeLeft} seconds...`;
-          timeLeft--;
-        }
-      }, 1000); // 1000 milliseconds = 1 second
-    }
-
-    // Call the function when the page loads
-    window.onload = delayedRedirect;
-  </script>
+  <title>Redirecting...</title>
 </head>
 <body>
-  <h1>Available Locations</h1>
-  <p>You can use the valid locations below:</p>
-  <ul>
-    {urlEntries.map(([name, url]) => (
-      <li>{name}: <a href={url} target="_blank" rel="noopener noreferrer">{url}</a></li>
-    ))}
-  </ul>
-  <p id="countdown">Redirecting in 15 seconds...</p>
+  <p>Redirecting you to HuskyNZ's main site due to no location beain provided...</p>
 </body>
 </html>
