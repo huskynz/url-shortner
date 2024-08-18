@@ -12,5 +12,5 @@ export const predefinedUrls: PredefinedUrls = {
     m: 'https://www.husky.nz',
     blog: 'https://www.husky.nz/blog',
     sh: 'https://panel.serverhorse.com/',
-    w7su: 'https://www.microsoft.com/en-us/download/details.aspx?id=46148'
+    w7su: 'https://download.microsoft.com/download/C/8/7/C87AE67E-A228-48FB-8F02-B2A9A1238099/Windows6.1-KB3033929-x64.msu'
 };
