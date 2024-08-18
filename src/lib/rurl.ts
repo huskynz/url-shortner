@@ -11,5 +11,6 @@ export const predefinedUrls: PredefinedUrls = {
     ghm: 'https://github.com/huskynz/10',
     m: 'https://www.husky.nz',
     blog: 'https://www.husky.nz/blog',
-    sh: 'https://panel.serverhorse.com/'
+    sh: 'https://panel.serverhorse.com/',
+    w7su: 'https://www.microsoft.com/en-us/download/details.aspx?id=46148'
 };
