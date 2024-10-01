@@ -1,24 +1,82 @@
 ---
 import { predefinedUrls } from "../lib/rurl";
+
+// Discord webhook URL (replace with your actual webhook URL)
+const discordWebhookUrl = import.meta.env.DISCORD_WEBHOOK_URL;
+
+// Access the request object using Astro's built-in features
 const { location } = Astro.params as { location?: string }; // Get the dynamic route parameter
-const redirectUrl = location === 'go'
-  ? '/'
-  : predefinedUrls[location as keyof typeof predefinedUrls] || '/';
+const redirectUrl =
+  location === "go"
+    ? "/"
+    : predefinedUrls[location as keyof typeof predefinedUrls] || "/";
+
+
+// Function to get the client's real IP address
+function getClientIp(request: Request) {
+  // Check standard headers for forwarded IP
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0]; // Use the first IP in the list
+  }
+
+  // Check Cloudflare's specific header if behind Cloudflare
+  const cloudflareIp = request.headers.get('cf-connecting-ip');
+  if (cloudflareIp) {
+    return cloudflareIp;
+  }
+
+  // Check Nginx's x-real-ip header if available
+  const realIp = request.headers.get('x-real-ip');
+  if (realIp) {
+    return realIp;
+  }
+
+  // Fall back to the host IP (server IP, which is less ideal)
+  return request.headers.get('host') || 'Unknown';
+}
+
+// Get the user's IP address and User-Agent
+const ip = getClientIp(Astro.request);
+
+// Get the user's IP address and User-Agent from the request headers
+const userAgent = Astro.request.headers.get("user-agent") || "Unknown";
+
+// Prepare the payload to send to Discord
+const discordPayload = {
+  content: `
+    🚨 New visitor detected!
+    **IP Address**: ${ip}
+    **User-Agent**: ${userAgent}
+    **Redirect**: ${location}
+    \n
+  `,
+};
+
+// Send data to Discord webhook
+await fetch(discordWebhookUrl, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify(discordPayload),
+});
 
 // Perform the redirection
 return new Response(null, {
-    status: 302,
-    headers: {
-      Location: redirectUrl,
-    }})
+  status: 302,
+  headers: {
+    Location: redirectUrl,
+  },
+});
 ---
 
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <title>Redirecting...</title>
-</head>
-<body>
-  <p>Redirecting to <a href={redirectUrl}>{redirectUrl}</a>...</p>
-</body>
+  <head>
+    <title>Redirecting...</title>
+  </head>
+  <body>
+    <p>Redirecting to <a href={redirectUrl}>{redirectUrl}</a>...</p>
+  </body>
 </html>
