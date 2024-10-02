@@ -50,6 +50,7 @@ export async function logUserData(location) {
         **IP Address**: ${ip}
         **User-Agent**: ${userAgent}
         **Redirect**: ${location}
+        **Ip Info**: https://whatismyipaddress.com/ip/${ip}
         \n
         `,
       };
