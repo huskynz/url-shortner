@@ -1,48 +1,36 @@
-<br/>
-<p align="center">
-  <a href="https://github.com/HuskyNZ/10">
-    <img src="https://serv.hnz.li/logo/default.png" alt="Logo" width="80" height="80">
-  </a>
+This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
-  <h3 align="center">HuskyNZ's Main Site</h3>
-  <br>
+## Getting Started
 
-</p>
+First, run the development server:
 
-![Contributors](https://img.shields.io/github/contributors/HuskyNZ/10o?color=dark-green) ![Issues](https://img.shields.io/github/issues/HuskyNZ/10) ![License](https://img.shields.io/github/license/HuskyNZ/10) [![Netlify Status](https://api.netlify.com/api/v1/badges/ef5c3182-ef99-4e67-860d-21fa579ff4ed/deploy-status)](https://app.netlify.com/sites/hurl/deploys?branch=master)
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-## About The Project
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-This is a url shortner useing Astro.JS dynamic urls and some simple Typescript urls are in src/lib/rurl.ts and it gets dynamically displayed on the index of the website
+You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
-## Built With
+This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
 
-- [AstroJS](https://astro.build/)
-- [Tailwind](https://tailwindcss.com/)
-- [Cloudlfare](https://www.cloudflare.com/)
-- [Github](https://github.com/)
+## Learn More
 
-## Roadmap
+To learn more about Next.js, take a look at the following resources:
 
-Im working on getting content into the blog and projects
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-## Contributing
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
 
-Contributions are what make the open source community such an amazing place to be learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+## Deploy on Vercel
 
-- If you have suggestions for adding or removing projects, feel free to [open an issue](https://github.com/huskynz/10/issues/new) to discuss it, or directly create a pull request after you edit a file with necessary changes. I only accept incoming pull requests on the dev branch for my sanity
-- Please make sure you check your spelling and grammar.
-- Create individual PR for each suggestion.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-## License
-
-Distributed under the MIT License. See [LICENSE](https://github.com/huskynz/10/blob/master/LICENSE) for more information.
-
-## Authors
-
-- [HuskyNZ](https://www.husky.nz)
-
-## Acknowledgements
-
-- [Cloudflare](https://cloudflare.com)
-- [markhorn-dev](https://github.com/markhorn-dev/astro-sphere)
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
