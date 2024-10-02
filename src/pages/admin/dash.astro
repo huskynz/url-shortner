@@ -1,0 +1,145 @@
+---
+import { createClient } from "@supabase/supabase-js";
+
+// Initialize Supabase client
+const supabaseUrl = import.meta.env.SUPABASE_URL;
+const supabaseKey = import.meta.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Check if the user is authenticated
+const { data: session } = await supabase.auth.getSession();
+
+if (!session) {
+  return new Response(null, {
+    status: 302,
+    headers: { Location: "/admin/login" },
+  });
+}
+
+// Fetch URLs from Supabase
+const { data: urls, error } = await supabase
+  .from("shortened_urls")
+  .select("id, short_path, redirect_url");
+
+if (error) {
+  console.error("Error fetching URLs:", error);
+}
+---
+
+<html lang="en">
+  <head>
+    <title>Admin Dashboard</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-gray-100 text-gray-900">
+    <div class="container mx-auto p-6">
+      <h1 class="text-3xl font-bold mb-6 text-center">Admin Dashboard</h1>
+
+      <!-- Add new URL form -->
+      <form id="add-url-form" class="mb-6">
+        <div class="mb-4">
+          <input
+            type="text"
+            name="short_path"
+            placeholder="Short URL"
+            class="input-field"
+            required
+          />
+        </div>
+        <div class="mb-4">
+          <input
+            type="url"
+            name="redirect_url"
+            placeholder="Redirect URL"
+            class="input-field"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary">Add URL</button>
+      </form>
+
+      <!-- List of URLs -->
+      <ul class="bg-white shadow-lg rounded-lg p-6">
+        {
+          urls &&
+            urls.map((url) => (
+              <li key={url.id} class="mb-4 flex justify-between items-center">
+                <span class="text-lg font-semibold text-indigo-600">
+                  {url.short_path}
+                </span>
+                <span>{url.redirect_url}</span>
+                <button
+                  class="text-blue-500"
+                  onClick={() => handleEdit(url.id)}
+                >
+                  Edit
+                </button>
+                <button
+                  class="text-red-500"
+                  onClick={() => handleDelete(url.id)}
+                >
+                  Delete
+                </button>
+              </li>
+            ))
+        }
+      </ul>
+    </div>
+
+    <script>
+      // Add new URL
+      document
+        .getElementById("add-url-form")
+        .addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const formData = new FormData(event.target);
+          const shortPath = formData.get("short_path");
+          const redirectUrl = formData.get("redirect_url");
+
+          const { error } = await supabase
+            .from("shortened_urls")
+            .insert([{ short_path: shortPath, redirect_url: redirectUrl }]);
+
+          if (error) {
+            alert("Error adding URL: " + error.message);
+          } else {
+            window.location.reload(); // Reload to reflect new entry
+          }
+        });
+
+      // Delete URL
+      async function handleDelete(id) {
+        const { error } = await supabase
+          .from("shortened_urls")
+          .delete()
+          .eq("id", id);
+
+        if (error) {
+          alert("Error deleting URL: " + error.message);
+        } else {
+          window.location.reload(); // Reload to reflect deletion
+        }
+      }
+
+      // Edit URL (can be expanded with a form for updating)
+      async function handleEdit(id) {
+        const newRedirectUrl = prompt("Enter new redirect URL:");
+        if (newRedirectUrl) {
+          const { error } = await supabase
+            .from("shortened_urls")
+            .update({ redirect_url: newRedirectUrl })
+            .eq("id", id);
+
+          if (error) {
+            alert("Error updating URL: " + error.message);
+          } else {
+            window.location.reload(); // Reload to reflect changes
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
