@@ -1,48 +1,49 @@
 ---
-import { predefinedUrls } from "../lib/rurl";
+import { createClient } from "@supabase/supabase-js";
 
-// Discord webhook URL (replace with your actual webhook URL)
+// Initialize Supabase client with environment variables
+const supabaseUrl = import.meta.env.SUPABASE_URL;
+const supabaseKey = import.meta.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 const discordWebhookUrl = import.meta.env.DISCORD_WEBHOOK_URL;
+const { location } = Astro.params as { location?: string };
 
-// Access the request object using Astro's built-in features
-const { location } = Astro.params as { location?: string }; // Get the dynamic route parameter
-const redirectUrl =
-  location === "go"
-    ? "/"
-    : predefinedUrls[location as keyof typeof predefinedUrls] || "/";
+async function fetchRedirectUrl(location: string) {
+  const { data, error } = await supabase
+    .from("shortened_urls")
+    .select("redirect_url")
+    .eq("short_path", location)
+    .single();
 
+  if (error || !data) {
+    console.error("Error fetching URL from Supabase:", error);
+    return "/"; // Fallback URL in case of error or missing path
+  }
+
+  return data.redirect_url;
+}
 
 // Function to get the client's real IP address
 function getClientIp(request: Request) {
-  // Check standard headers for forwarded IP
-  const forwardedFor = request.headers.get('x-forwarded-for');
+  const forwardedFor = request.headers.get("x-forwarded-for");
   if (forwardedFor) {
-    return forwardedFor.split(',')[0]; // Use the first IP in the list
+    return forwardedFor.split(",")[0];
   }
-
-  // Check Cloudflare's specific header if behind Cloudflare
-  const cloudflareIp = request.headers.get('cf-connecting-ip');
+  const cloudflareIp = request.headers.get("cf-connecting-ip");
   if (cloudflareIp) {
     return cloudflareIp;
   }
-
-  // Check Nginx's x-real-ip header if available
-  const realIp = request.headers.get('x-real-ip');
+  const realIp = request.headers.get("x-real-ip");
   if (realIp) {
     return realIp;
   }
-
-  // Fall back to the host IP (server IP, which is less ideal)
-  return request.headers.get('host') || 'Unknown';
+  return request.headers.get("host") || "Unknown";
 }
 
-// Get the user's IP address and User-Agent
 const ip = getClientIp(Astro.request);
-
-// Get the user's IP address and User-Agent from the request headers
 const userAgent = Astro.request.headers.get("user-agent") || "Unknown";
 
-// Prepare the payload to send to Discord
 const discordPayload = {
   content: `
     🚨 New visitor detected!
@@ -61,6 +62,9 @@ await fetch(discordWebhookUrl, {
   },
   body: JSON.stringify(discordPayload),
 });
+
+// Fetch the redirect URL from Supabase
+const redirectUrl = location === "go" ? "/" : await fetchRedirectUrl(location);
 
 // Perform the redirection
 return new Response(null, {

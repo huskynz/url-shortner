@@ -1,30 +1,59 @@
 ---
-import { predefinedUrls } from '../lib/rurl'; // Adjust this path based on your project structure
+import { createClient } from "@supabase/supabase-js";
+
+// Initialize Supabase client
+const supabaseUrl = import.meta.env.SUPABASE_URL;
+const supabaseKey = import.meta.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Fetch all shortened URLs from Supabase
+const { data: urls, error } = await supabase
+  .from("shortened_urls")
+  .select("short_path, redirect_url");
+
+if (error) {
+  console.error("Error fetching URLs from Supabase:", error);
+}
 ---
 
 <html lang="en">
   <head>
     <title>Available Shortened URLs</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
   </head>
   <body class="bg-gray-100 text-gray-900">
     <div class="container mx-auto p-6">
-      <h1 class="text-3xl font-bold mb-6 text-center">Available Shortened URLs</h1>
+      <h1 class="text-3xl font-bold mb-6 text-center">
+        Available Shortened URLs
+      </h1>
       <ul class="bg-white shadow-lg rounded-lg p-6">
-        {Object.entries(predefinedUrls).map(([key, location]) => (
-          <li class="mb-4 flex justify-between items-center">
-            <span class="text-lg font-semibold text-indigo-600">{key}</span>
-            <a 
-              href={location} 
-              target="_blank" 
-              class="text-blue-500 underline hover:text-blue-700 transition-colors"
-            >
-              {location}
-            </a>
-          </li>
-        ))}
+        {
+          urls ? (
+            urls.map(({ short_path, redirect_url }) => (
+              <li
+                class="mb-4 flex justify-between items-center"
+                key={short_path}
+              >
+                <span class="text-lg font-semibold text-indigo-600">
+                  {short_path}
+                </span>
+                <a
+                  href={redirect_url}
+                  target="_blank"
+                  class="text-blue-500 underline hover:text-blue-700 transition-colors"
+                >
+                  {redirect_url}
+                </a>
+              </li>
+            ))
+          ) : (
+            <li>Error loading URLs</li>
+          )
+        }
       </ul>
     </div>
   </body>
 </html>
-
