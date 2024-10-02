@@ -16,5 +16,5 @@ export const predefinedUrls: PredefinedUrls = {
     gurl: 'https://github.com/huskynz/url-shortner/',
     sp: 'https://open.spotify.com/',
     urls: 'https://hnz.li/urls',
-    410340: 'https://store.steampowered.com/app/410340/Liftoff_FPV_Drone_Racing/'
+    410340: 'https://www.husky.nz/invaildlink?name=/410340'
 };
