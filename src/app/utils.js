@@ -9,20 +9,25 @@ const supabaseKey = process.env.SUPABASE_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// utils.js - Update fetchRedirectUrl function
 export async function fetchRedirectUrl(location) {
   const { data, error } = await supabase
     .from("shortened_urls")
-    .select("redirect_url")
-    .eq("short_path", location);
+    .select("redirect_url, deprecated")
+    .eq("short_path", location)
+    .single();
 
-  // Remove .single() and handle array result
-  if (error || !data || data.length === 0) {
+  if (error || !data) {
     console.error("Error fetching URL from Supabase:", error);
-    return "https://www.husky.nz"; // Fallback URL
+    return {
+      redirect_url: "/invaild",  // Safe fallback
+      deprecated: false
+    };
   }
 
-  return data[0].redirect_url; // Return first match
+  return {
+    redirect_url: data.redirect_url,
+    deprecated: Boolean(data.deprecated)
+  };
 }
 
 // Function to handle redirection
@@ -54,7 +59,6 @@ export async function fetchDisplayUrls() {
   const { data, error } = await supabase
     .from("shortened_urls")
     .select("short_path, redirect_url, deprecated");
-    
   if (error) {
     console.error("Error fetching URLs:", error);
     return [];
