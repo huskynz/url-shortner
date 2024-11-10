@@ -53,8 +53,8 @@ export async function deleteUrl(shortPath) {
 export async function fetchDisplayUrls() {
   const { data, error } = await supabase
     .from("shortened_urls")
-    .select("short_path, redirect_url");
-
+    .select("short_path, redirect_url, deprecated");
+    
   if (error) {
     console.error("Error fetching URLs:", error);
     return [];
