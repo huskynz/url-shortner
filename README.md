@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+<br/>
+<p align="center">
+  <a href="https://github.com/HuskyNZ/10">
+    <img src="https://serv.hnz.li/logo/default.png" alt="Logo" width="80" height="80">
+  </a>
 
-## Getting Started
+  <h3 align="center">HuskyNZ's Url Shortner</h3>
+  <br>
 
-First, run the development server:
+</p>
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+![Contributors](https://img.shields.io/github/contributors/HuskyNZ/url-shortner?color=dark-green) ![Issues](https://img.shields.io/github/issues/HuskyNZ/url-shortner) ![License](https://img.shields.io/github/license/HuskyNZ/url-shortner)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## About The Project
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+This is a NextJS App that uses suppabase to create a URL shortner
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+## Built With
 
-## Learn More
+- [NextJS](https://nextjs.org/)
+- [Tailwind](https://tailwindcss.com/)
+- [Cloudlfare](https://www.cloudflare.com/)
+- [Github](https://github.com/)
 
-To learn more about Next.js, take a look at the following resources:
+## Roadmap
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Im working on getting content into the blog and projects
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+## Contributing
 
-## Deploy on Vercel
+Contributions are what make the open source community such an amazing place to be learn, inspire, and create. Any contributions you make are **greatly appreciated**.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- If you have suggestions for adding or removing projects, feel free to [open an issue](https://github.com/huskynz/10/issues/new) to discuss it, or directly create a pull request after you edit a file with necessary changes. I only accept incoming pull requests on the dev branch for my sanity
+- Please make sure you check your spelling and grammar.
+- Create individual PR for each suggestion.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+## License
+
+Distributed under the MIT License. See [LICENSE](https://github.com/huskynz/10/blob/master/LICENSE) for more information.
+
+## Authors
+
+- [HuskyNZ](https://www.husky.nz)
+
+## Acknowledgements
+- [@not-my-username](https://github.com/not-my-username)
+- [Cloudflare](https://cloudflare.com)
+
