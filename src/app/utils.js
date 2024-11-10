@@ -9,28 +9,58 @@ const supabaseKey = process.env.SUPABASE_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Function to fetch the redirect URL from Supabase
+// utils.js - Update fetchRedirectUrl function
 export async function fetchRedirectUrl(location) {
   const { data, error } = await supabase
     .from("shortened_urls")
     .select("redirect_url")
-    .eq("short_path", location)
-    .single();
+    .eq("short_path", location);
 
-  console.log(data);
-
-  if (error || !data) {
+  // Remove .single() and handle array result
+  if (error || !data || data.length === 0) {
     console.error("Error fetching URL from Supabase:", error);
-    return "https://www.husky.nz";  // Fallback URL in case of error or missing path
+    return "https://www.husky.nz"; // Fallback URL
   }
 
-  return data.redirect_url;
+  return data[0].redirect_url; // Return first match
 }
 
 // Function to handle redirection
 export async function redirectToUrl(location) {
   const url = await fetchRedirectUrl(location);
   redirect(url);
+}
+
+// Allow us to add and delete URLs from Supabase
+export async function addUrl(shortPath, redirectUrl) {
+  const { error } = await supabase
+    .from("shortened_urls")
+    .insert({ short_path: shortPath, redirect_url: redirectUrl });
+  if (error) console.error("Error adding URL:", error);
+  return !error;
+}
+
+export async function deleteUrl(shortPath) {
+  const { error } = await supabase
+    .from("shortened_urls")
+    .delete()
+    .eq("short_path", shortPath);
+  if (error) console.error("Error deleting URL:", error);
+  return !error;
+}
+
+// Funtion to allow /urls to fetch all URLs from Supabase
+export async function fetchDisplayUrls() {
+  const { data, error } = await supabase
+    .from("shortened_urls")
+    .select("short_path, redirect_url");
+
+  if (error) {
+    console.error("Error fetching URLs:", error);
+    return [];
+  }
+
+  return data;
 }
 
 
@@ -71,4 +101,5 @@ export async function logUserData(location) {
     } catch (error) {
         console.error('Error sending message to Discord:', error);
     }
+
 }
