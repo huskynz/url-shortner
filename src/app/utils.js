@@ -10,30 +10,43 @@ const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function fetchRedirectUrl(location) {
+  // Special routes - don't redirect
+  if (location === 'invaildlink' || location === 'deprecated' || location === 'urls') {
+    return null;
+  }
+
   const { data, error } = await supabase
     .from("shortened_urls")
-    .select("redirect_url, deprecated")
+    .select("redirect_url, deprecated, short_path")
     .eq("short_path", location)
     .single();
 
   if (error || !data) {
-    console.error("Error fetching URL from Supabase:", error);
     return {
-      redirect_url: "/invaild",  // Safe fallback
+      redirect_url: "/invaildlink",
       deprecated: false
+    };
+  }
+
+  if (data.deprecated) {
+    return {
+      redirect_url: `/deprecated?dpl=${location}`,
+      deprecated: true
     };
   }
 
   return {
     redirect_url: data.redirect_url,
-    deprecated: Boolean(data.deprecated)
+    deprecated: false
   };
 }
 
-// Function to handle redirection
 export async function redirectToUrl(location) {
-  const url = await fetchRedirectUrl(location);
-  redirect(url);
+  const urlData = await fetchRedirectUrl(location);
+  if (!urlData) {
+    return; // Don't redirect special routes
+  }
+  redirect(urlData.redirect_url);
 }
 
 // Allow us to add and delete URLs from Supabase

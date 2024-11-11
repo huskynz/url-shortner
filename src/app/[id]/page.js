@@ -8,10 +8,14 @@ export default async function Page({ params }) {
   
   const urlData = await fetchRedirectUrl(id);
 
+  // Handle special routes
+  if (!urlData) {
+    return;
+  }
+
   // For internal routes, use redirect without http/https
   if (urlData.deprecated) {
-    redirect('/deprecated');
-    return; // Safety return
+    redirect(`/deprecated?dpl=${id}`);
   }
 
   // For external URLs, keep the full URL
