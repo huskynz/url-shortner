@@ -74,7 +74,8 @@ const Page = () => {
             <p>
               You can find us on the following platforms:
             </p>
-            
+            <br />
+            <a href="/urls">View all shortened urls</a>
             <center>
             <br />
             {links.map((link, index) => (
