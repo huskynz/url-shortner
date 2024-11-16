@@ -9,7 +9,7 @@ const supabase = createClient(
 export async function GET() {
   try {
     const { data, error } = await supabase
-      .from('allowed_admins')
+      .from('github_admins')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -26,7 +26,7 @@ export async function POST(request) {
     
     // Check if admin already exists
     const { data: existing } = await supabase
-      .from('allowed_admins')
+      .from('github_admins')
       .select('github_username')
       .eq('github_username', github_username)
       .single();
@@ -36,7 +36,7 @@ export async function POST(request) {
     }
 
     const { error } = await supabase
-      .from('allowed_admins')
+      .from('github_admins')
       .insert([{ github_username }]);
 
     if (error) throw error;
@@ -50,9 +50,13 @@ export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
     const github_username = searchParams.get('github_username');
-    
+
+    if (!github_username) {
+      return NextResponse.json({ error: 'No username provided' }, { status: 400 });
+    }
+
     const { error } = await supabase
-      .from('allowed_admins')
+      .from('github_admins')
       .delete()
       .eq('github_username', github_username);
 

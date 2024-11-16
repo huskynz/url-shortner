@@ -20,7 +20,7 @@ export default withAuth(
       );
 
       const { data } = await supabase
-        .from('allowed_admins')
+        .from('github_admins')
         .select('github_username')
         .eq('github_username', username)
         .single();
