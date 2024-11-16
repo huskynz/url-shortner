@@ -1,28 +1,28 @@
 'use client';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
-import { fetchUrls, addUrl, deleteUrl, toggleDeprecated } from '../actions/urlActions';
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
   const [urls, setUrls] = useState([]);
   const [newUrl, setNewUrl] = useState({ short_path: '', redirect_url: '' });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    loadUrls();
-  }, []);
-
-  const loadUrls = async () => {
-    try {
-      const data = await fetchUrls();
-      setUrls(data || []);
-    } catch (error) {
-      console.error('Error loading URLs:', error);
-    } finally {
-      setLoading(false);
+    if (session) {
+      fetch('/.netlify/functions/get-urls')
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) throw new Error(data.error);
+          setUrls(data);
+        })
+        .catch(err => {
+          console.error('Error:', err);
+          setError('Failed to load URLs');
+        });
     }
-  };
+  }, [session]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

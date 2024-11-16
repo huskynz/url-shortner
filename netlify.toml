@@ -1,14 +1,15 @@
+[build]
+command = "npm run build"
+publish = ".next"
+
+[functions]
+directory = "netlify/functions"
+node_bundler = "esbuild"
+
 [build.environment]
 NEXT_PUBLIC_SUPABASE_URL = "${NEXT_PUBLIC_SUPABASE_URL}"
 SUPABASE_SERVICE_ROLE_KEY = "${SUPABASE_SERVICE_ROLE_KEY}"
 GITHUB_ID = "${GITHUB_ID}"
 GITHUB_SECRET = "${GITHUB_SECRET}"
 NEXTAUTH_URL = "${NEXTAUTH_URL}"
-NEXTAUTH_SECRET = "${NEXTAUTH_SECRET}"
-
-[functions]
-external_node_modules = ["@supabase/supabase-js"]
-
-[[edge_functions]]
-function = "*"
-pattern = "/*" 
+NEXTAUTH_SECRET = "${NEXTAUTH_SECRET}" 
