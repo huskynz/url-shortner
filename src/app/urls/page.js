@@ -1,9 +1,8 @@
-// page.js (Server Component)
-import UrlList from './UrlList'; // Remove the curly braces
+import UrlPageClient from './UrlPageClient';
 import { fetchDisplayUrls, logUserData } from '../utils';
 
 export default async function UrlsPage() {
   const urls = await fetchDisplayUrls();
   await logUserData("urls");
-  return <UrlList initialUrls={urls} />;
+  return <UrlPageClient initialUrls={urls} />;
 }
