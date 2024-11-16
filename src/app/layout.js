@@ -1,5 +1,6 @@
 import localFont from "next/font/local";
 import "./globals.css";
+import Providers from './components/Providers';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -23,7 +24,9 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <link rel="icon" type="image/x-icon" href="https://serv.husky.nz/logo/default180.png" />
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

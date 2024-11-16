@@ -9,6 +9,7 @@ const supabaseKey = process.env.SUPABASE_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+
 export async function fetchRedirectUrl(location) {
   // Special routes - don't redirect
   if (location === 'invaildlink' || location === 'deprecated' || location === 'urls') {
