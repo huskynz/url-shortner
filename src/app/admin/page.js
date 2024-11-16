@@ -5,6 +5,7 @@ import { MobileIcon, DesktopIcon } from '@radix-ui/react-icons';
 import { useDeviceDetect } from '../hooks/useDeviceDetect';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AddUrlDialog from '../components/AddUrlDialog';
+import AddAdminDialog from '../components/AddAdminDialog';
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
@@ -24,6 +25,9 @@ export default function AdminDashboard() {
     onConfirm: () => {},
   });
   const [isAddUrlOpen, setIsAddUrlOpen] = useState(false);
+  const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
+  const [adminError, setAdminError] = useState('');
+  const [admins, setAdmins] = useState([]);
 
   useEffect(() => {
     setIsMobileView(isMobileDevice);
@@ -43,6 +47,22 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (session) loadUrls();
   }, [session]);
+
+  useEffect(() => {
+    loadAdmins();
+  }, []);
+
+  const loadAdmins = async () => {
+    try {
+      const res = await fetch('/api/admin-management');
+      const data = await res.json();
+      if (!data.error) {
+        setAdmins(data);
+      }
+    } catch (error) {
+      console.error('Failed to load admins:', error);
+    }
+  };
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -125,6 +145,39 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleAddAdmin = async (github_username) => {
+    try {
+      const res = await fetch('/api/admin-management', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ github_username }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      loadAdmins();
+      setAdminError('');
+    } catch (err) {
+      setAdminError(err.message || 'Failed to add admin');
+    }
+  };
+
+  const handleRemoveAdmin = async (github_username) => {
+    if (!confirm(`Are you sure you want to remove ${github_username} as an admin?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin-management?github_username=${github_username}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      loadAdmins();
+    } catch (error) {
+      console.error('Failed to remove admin:', error);
+    }
+  };
+
   if (status === 'loading') {
     return <div className="p-8">Loading...</div>;
   }
@@ -204,6 +257,12 @@ export default function AdminDashboard() {
                 >
                   Add URL
                 </button>
+                <button
+                  onClick={() => setIsAddAdminOpen(true)}
+                  className="px-4 py-2 rounded text-sm bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors"
+                >
+                  Manage Admins
+                </button>
               </>
             ) : (
               // Desktop Layout - Updated
@@ -213,6 +272,12 @@ export default function AdminDashboard() {
                   className="px-4 py-2 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors"
                 >
                   Add URL
+                </button>
+                <button
+                  onClick={() => setIsAddAdminOpen(true)}
+                  className="px-4 py-2 rounded text-sm bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors"
+                >
+                  Manage Admins
                 </button>
                 <div className="flex items-center gap-3">
                   <button 
@@ -356,6 +421,19 @@ export default function AdminDashboard() {
         }}
         onSubmit={handleAddUrl}
         error={error}
+      />
+
+      <AddAdminDialog
+        isOpen={isAddAdminOpen}
+        onClose={() => {
+          setIsAddAdminOpen(false);
+          setAdminError('');
+        }}
+        onSubmit={handleAddAdmin}
+        error={adminError}
+        admins={admins}
+        onRemove={handleRemoveAdmin}
+        currentUsername={session?.user?.username}
       />
     </>
   );
