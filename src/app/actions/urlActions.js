@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // Don't throw errors for missing env vars in production
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   {
     auth: {
@@ -14,7 +14,7 @@ const supabase = createClient(
 );
 
 export async function fetchUrls() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return [];  // Return empty array instead of throwing in production
   }
 
