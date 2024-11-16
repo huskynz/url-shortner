@@ -21,11 +21,16 @@ export default withAuth(
 
       const { data } = await supabase
         .from('github_admins')
-        .select('github_username')
+        .select('github_username, role')
         .eq('github_username', username)
         .single();
 
-      return data ? NextResponse.next() : NextResponse.redirect(new URL('/urls', req.url));
+      if (!data) {
+        return NextResponse.redirect(new URL('/urls', req.url));
+      }
+
+      req.role = data.role;
+      return NextResponse.next();
     } catch (error) {
       console.error('Admin check failed:', error);
       return NextResponse.redirect(new URL('/urls', req.url));

@@ -6,9 +6,38 @@ import { useDeviceDetect } from '../hooks/useDeviceDetect';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AddUrlDialog from '../components/AddUrlDialog';
 import AddAdminDialog from '../components/AddAdminDialog';
+import { useRole } from '../hooks/useRole';
+import NoAccessDialog from '../components/NoAccessDialog';
+
+const FilterSection = ({ filter, setFilter, search, setSearch, isAdmin, isOwner }) => {
+  return (
+    <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <select
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        className="p-2 rounded bg-transparent border border-gray-700 text-gray-300 focus:outline-none focus:border-gray-500 sm:w-[200px]"
+      >
+        <option value="all">All URLs</option>
+        <option value="active">Active URLs</option>
+        {(isAdmin || isOwner) && (
+          <option value="deprecated">Deprecated URLs</option>
+        )}
+      </select>
+
+      <input
+        type="text"
+        placeholder="Search URLs..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full sm:flex-1 p-2 border rounded bg-gray-800 border-gray-700 text-gray-300 placeholder-gray-400 focus:outline-none focus:border-gray-500"
+      />
+    </div>
+  );
+};
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
+  const { role, isAdmin, isOwner } = useRole();
   const [urls, setUrls] = useState([]);
   const [error, setError] = useState(null);
   const [newUrl, setNewUrl] = useState({ short_path: '', redirect_url: '' });
@@ -28,6 +57,9 @@ export default function AdminDashboard() {
   const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
   const [adminError, setAdminError] = useState('');
   const [admins, setAdmins] = useState([]);
+  const [showNoAccess, setShowNoAccess] = useState(false);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [urlToDelete, setUrlToDelete] = useState(null);
 
   useEffect(() => {
     setIsMobileView(isMobileDevice);
@@ -81,68 +113,96 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleToggleDeprecated = async (short_path, currentState) => {
-    const action = currentState ? 'activate' : 'deprecate';
-    setConfirmDialog({
-      isOpen: true,
-      title: `${action.charAt(0).toUpperCase() + action.slice(1)} URL`,
-      message: `Are you sure you want to ${action} /${short_path}?`,
-      confirmText: action.charAt(0).toUpperCase() + action.slice(1),
-      variant: currentState ? 'yellow' : 'green',
-      onConfirm: async () => {
-        try {
-          const res = await fetch('/api/admin-urls', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ short_path, deprecated: !currentState }),
-          });
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
-          loadUrls();
-        } catch (err) {
-          setError('Failed to update URL');
+  const handleRestrictedAction = (action) => {
+    if (!isAdmin && !isOwner) {
+      setShowNoAccess(true);
+      return;
+    }
+    action();
+  };
+
+  const handleToggleDeprecated = async (url) => {
+    handleRestrictedAction(async () => {
+      try {
+        const res = await fetch('/api/admin-urls', {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            short_path: url.short_path,
+            deprecated: !url.deprecated
+          })
+        });
+
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to update URL');
         }
-      },
+
+        // Refresh the URLs list after successful update
+        const updatedRes = await fetch('/api/admin-urls');
+        const updatedUrls = await updatedRes.json();
+        setUrls(updatedUrls);
+
+      } catch (error) {
+        console.error('Failed to toggle deprecated status:', error);
+        setError('Failed to update URL status');
+      }
     });
   };
 
-  const handleDelete = async (short_path) => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Delete URL',
-      message: `Are you sure you want to delete /${short_path}? This action cannot be undone.`,
-      confirmText: 'Delete',
-      variant: 'red',
-      onConfirm: async () => {
-        try {
-          const res = await fetch(`/api/admin-urls?short_path=${short_path}`, {
-            method: 'DELETE',
-          });
-          const data = await res.json();
-          if (data.error) throw new Error(data.error);
-          loadUrls();
-        } catch (err) {
-          setError('Failed to delete URL');
-        }
-      },
+  const handleDelete = async (url) => {
+    handleRestrictedAction(() => {
+      setUrlToDelete(url);
+      setShowConfirmDelete(true);
     });
+  };
+
+  const confirmDelete = async () => {
+    if (urlToDelete) {
+      try {
+        const res = await fetch(`/api/admin-urls`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ short_path: urlToDelete.short_path })
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to delete URL');
+        }
+
+        // Refresh the URLs list
+        loadUrls();
+        setShowConfirmDelete(false);
+        setUrlToDelete(null);
+      } catch (error) {
+        console.error('Failed to delete URL:', error);
+        setError('Failed to delete URL');
+      }
+    }
   };
 
   const handleAddUrl = async (newUrl) => {
-    try {
-      const res = await fetch('/api/admin-urls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUrl),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      loadUrls();
-      setIsAddUrlOpen(false);
-      setError('');
-    } catch (err) {
-      setError('Failed to add URL');
-    }
+    handleRestrictedAction(async () => {
+      try {
+        const res = await fetch('/api/admin-urls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newUrl),
+        });
+        
+        if (!res.ok) throw new Error('Failed to add URL');
+        loadUrls();
+        setIsAddUrlOpen(false);
+        setError('');
+      } catch (error) {
+        console.error('Failed to add URL:', error);
+      }
+    });
   };
 
   const handleAddAdmin = async (github_username) => {
@@ -178,6 +238,29 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleUpdateRole = async (github_username, role) => {
+    try {
+      const res = await fetch('/api/admin-management', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ github_username, role }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      loadAdmins();
+    } catch (error) {
+      console.error('Failed to update role:', error);
+    }
+  };
+
+  const handleAdminAction = (action) => {
+    if (!isOwner) {
+      setShowNoAccess(true);
+      return;
+    }
+    action();
+  };
+
   if (status === 'loading') {
     return <div className="p-8">Loading...</div>;
   }
@@ -210,6 +293,9 @@ export default function AdminDashboard() {
       }
       return true;
     });
+
+  const showManageAdmins = isOwner;
+  const showUrlManagement = isAdmin || isOwner;
 
   return (
     <>
@@ -248,37 +334,41 @@ export default function AdminDashboard() {
                   onClick={() => setIsMobileView(!isMobileView)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded bg-gray-800 text-gray-300 hover:bg-gray-700 text-sm"
                 >
-                  <MobileIcon className="w-4 h-4" />
-                  Mobile View
+                  <DesktopIcon className="w-4 h-4" />
+                  Desktop View
                 </button>
                 <button
-                  onClick={() => setIsAddUrlOpen(true)}
+                  onClick={() => handleRestrictedAction(() => setIsAddUrlOpen(true))}
                   className="px-4 py-2 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors"
                 >
                   Add URL
                 </button>
-                <button
-                  onClick={() => setIsAddAdminOpen(true)}
-                  className="px-4 py-2 rounded text-sm bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors"
-                >
-                  Manage Admins
-                </button>
+                {showManageAdmins && (
+                  <button
+                    onClick={() => handleAdminAction(() => setIsAddAdminOpen(true))}
+                    className="px-4 py-2 rounded text-sm bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors"
+                  >
+                    Manage Admins
+                  </button>
+                )}
               </>
             ) : (
               // Desktop Layout - Updated
               <>
                 <button
-                  onClick={() => setIsAddUrlOpen(true)}
+                  onClick={() => handleRestrictedAction(() => setIsAddUrlOpen(true))}
                   className="px-4 py-2 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors"
                 >
                   Add URL
                 </button>
-                <button
-                  onClick={() => setIsAddAdminOpen(true)}
-                  className="px-4 py-2 rounded text-sm bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors"
-                >
-                  Manage Admins
-                </button>
+                {showManageAdmins && (
+                  <button
+                    onClick={() => handleAdminAction(() => setIsAddAdminOpen(true))}
+                    className="px-4 py-2 rounded text-sm bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors"
+                  >
+                    Manage Admins
+                  </button>
+                )}
                 <div className="flex items-center gap-3">
                   <button 
                     onClick={() => signOut()} 
@@ -296,26 +386,14 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className={`${isMobileView ? 'flex flex-col gap-4' : 'flex gap-4'} mb-4`}>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className={`p-2 rounded bg-transparent border border-gray-700 text-gray-300 focus:outline-none focus:border-gray-500
-              ${isMobileView ? 'w-full' : 'w-[200px]'}`}
-          >
-            <option value="all">All URLs</option>
-            <option value="active">Active URLs</option>
-            <option value="deprecated">Deprecated URLs</option>
-          </select>
-
-          <input
-            type="text"
-            placeholder="Search URLs..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full p-2 border rounded bg-gray-800 border-gray-700 text-gray-300 placeholder-gray-400 focus:outline-none focus:border-gray-500"
-          />
-        </div>
+        <FilterSection 
+          filter={filter}
+          setFilter={setFilter}
+          search={search}
+          setSearch={setSearch}
+          isAdmin={isAdmin}
+          isOwner={isOwner}
+        />
 
         <div className={`grid gap-4 ${isMobileView ? 'max-w-sm mx-auto' : ''}`}>
           {filteredUrls.map((url) => (
@@ -343,7 +421,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex flex-col gap-2">
                     <button
-                      onClick={() => handleToggleDeprecated(url.short_path, url.deprecated)}
+                      onClick={() => handleToggleDeprecated(url)}
                       className={`w-full py-2 rounded text-center ${
                         url.deprecated 
                           ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20' 
@@ -353,7 +431,7 @@ export default function AdminDashboard() {
                       {url.deprecated ? 'Activate' : 'Deprecate'}
                     </button>
                     <button
-                      onClick={() => handleDelete(url.short_path)}
+                      onClick={() => handleDelete(url)}
                       className="w-full py-2 rounded text-center bg-red-500/10 text-red-500 hover:bg-red-500/20"
                     >
                       Delete
@@ -380,7 +458,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleToggleDeprecated(url.short_path, url.deprecated)}
+                      onClick={() => handleToggleDeprecated(url)}
                       className={`px-3 py-1.5 text-sm rounded whitespace-nowrap ${
                         url.deprecated 
                           ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20' 
@@ -390,7 +468,7 @@ export default function AdminDashboard() {
                       {url.deprecated ? 'Activate' : 'Deprecate'}
                     </button>
                     <button
-                      onClick={() => handleDelete(url.short_path)}
+                      onClick={() => handleDelete(url)}
                       className="px-3 py-1.5 text-sm rounded whitespace-nowrap bg-red-500/10 text-red-500 hover:bg-red-500/20"
                     >
                       Delete
@@ -423,17 +501,38 @@ export default function AdminDashboard() {
         error={error}
       />
 
-      <AddAdminDialog
-        isOpen={isAddAdminOpen}
+      {showManageAdmins && (
+        <AddAdminDialog
+          isOpen={isAddAdminOpen}
+          onClose={() => {
+            setIsAddAdminOpen(false);
+            setAdminError('');
+          }}
+          onSubmit={handleAddAdmin}
+          onUpdateRole={handleUpdateRole}
+          error={adminError}
+          admins={admins}
+          onRemove={handleRemoveAdmin}
+          currentUsername={session?.user?.username}
+        />
+      )}
+
+      <NoAccessDialog 
+        isOpen={showNoAccess} 
+        onClose={() => setShowNoAccess(false)} 
+      />
+
+      <ConfirmDialog
+        isOpen={showConfirmDelete}
         onClose={() => {
-          setIsAddAdminOpen(false);
-          setAdminError('');
+          setShowConfirmDelete(false);
+          setUrlToDelete(null);
         }}
-        onSubmit={handleAddAdmin}
-        error={adminError}
-        admins={admins}
-        onRemove={handleRemoveAdmin}
-        currentUsername={session?.user?.username}
+        onConfirm={confirmDelete}
+        title="Delete URL"
+        message={`Are you sure you want to delete /${urlToDelete?.short_path}?`}
+        confirmText="Delete"
+        variant="red"
       />
     </>
   );

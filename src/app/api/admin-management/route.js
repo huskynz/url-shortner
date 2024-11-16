@@ -22,7 +22,7 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const { github_username } = await request.json();
+    const { github_username, role = 'viewer' } = await request.json();
     
     // Check if admin already exists
     const { data: existing } = await supabase
@@ -37,7 +37,7 @@ export async function POST(request) {
 
     const { error } = await supabase
       .from('github_admins')
-      .insert([{ github_username }]);
+      .insert([{ github_username, role }]);
 
     if (error) throw error;
     return NextResponse.json({ success: true });
@@ -48,13 +48,8 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const github_username = searchParams.get('github_username');
-
-    if (!github_username) {
-      return NextResponse.json({ error: 'No username provided' }, { status: 400 });
-    }
-
+    const { github_username } = await request.json();
+    
     const { error } = await supabase
       .from('github_admins')
       .delete()
@@ -64,5 +59,21 @@ export async function DELETE(request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to remove admin' }, { status: 500 });
+  }
+}
+
+export async function PUT(request) {
+  try {
+    const { github_username, role } = await request.json();
+    
+    const { error } = await supabase
+      .from('github_admins')
+      .update({ role })
+      .eq('github_username', github_username);
+
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to update admin role' }, { status: 500 });
   }
 } 

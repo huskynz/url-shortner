@@ -44,22 +44,37 @@ export async function PUT(request) {
     const body = await request.json();
     const { short_path, deprecated } = body;
     
+    if (typeof short_path !== 'string' || typeof deprecated !== 'boolean') {
+      return NextResponse.json(
+        { error: 'Invalid input data' }, 
+        { status: 400 }
+      );
+    }
+
     const { error } = await supabase
       .from('shortened_urls')
       .update({ deprecated })
       .eq('short_path', short_path);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to update URL' }, { status: 500 });
+    console.error('Update error:', error);
+    return NextResponse.json(
+      { error: 'Failed to update URL' }, 
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const short_path = searchParams.get('short_path');
+    const body = await request.json();
+    const { short_path } = body;
     
     const { error } = await supabase
       .from('shortened_urls')
