@@ -1,16 +1,10 @@
 'use server';
 import { createClient } from '@supabase/supabase-js';
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL');
-}
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('Missing env.SUPABASE_SERVICE_ROLE_KEY');
-}
-
+// Don't throw errors for missing env vars in production
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   {
     auth: {
       autoRefreshToken: false,
@@ -20,16 +14,24 @@ const supabase = createClient(
 );
 
 export async function fetchUrls() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return [];  // Return empty array instead of throwing in production
+  }
+
   try {
     const { data, error } = await supabase
       .from('shortened_urls')
       .select('*');
     
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      return [];  // Return empty array on error
+    }
+    
     return data || [];
   } catch (error) {
-    console.error('Error fetching URLs:', error);
-    throw error;
+    console.error('Fetch error:', error);
+    return [];  // Return empty array on error
   }
 }
 
