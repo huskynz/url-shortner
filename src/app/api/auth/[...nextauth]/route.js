@@ -1,5 +1,11 @@
 import NextAuth from 'next-auth';
 import GithubProvider from 'next-auth/providers/github';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 const handler = NextAuth({
   providers: [
@@ -10,7 +16,18 @@ const handler = NextAuth({
   ],
   callbacks: {
     async signIn({ user, profile }) {
-      return profile.login === 'Husky-Devel';
+      try {
+        const { data: admin } = await supabase
+          .from('github_admins')
+          .select('role')
+          .eq('github_username', profile.login)
+          .single();
+
+        return !!admin; // Returns true if user exists in github_admins table, false otherwise
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        return false;
+      }
     },
     async session({ session, token }) {
       if (session?.user) {
