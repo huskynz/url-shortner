@@ -9,6 +9,7 @@ import AddAdminDialog from '../components/AddAdminDialog';
 import { useRole } from '../hooks/useRole';
 import NoAccessDialog from '../components/NoAccessDialog';
 import LoadingSpinner from '../components/LoadingSpinner';
+import EditUrlDialog from '../components/EditUrlDialog';
 
 const FilterSection = ({ filter, setFilter, search, setSearch, isAdmin, isOwner }) => {
   return (
@@ -65,6 +66,8 @@ export default function AdminDashboard() {
     deprecating: new Set(),
     deleting: null
   });
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [urlToEdit, setUrlToEdit] = useState(null);
 
   useEffect(() => {
     setIsMobileView(isMobileDevice);
@@ -284,6 +287,28 @@ export default function AdminDashboard() {
     action();
   };
 
+  const handleEdit = async (data) => {
+    try {
+      const res = await fetch('/api/admin-urls', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update URL');
+      }
+
+      // Refresh the URLs list
+      loadUrls();
+    } catch (error) {
+      console.error('Failed to update URL:', error);
+      throw error;
+    }
+  };
+
   if (status === 'loading') {
     return <div className="p-8">Loading...</div>;
   }
@@ -462,6 +487,15 @@ export default function AdminDashboard() {
                       )}
                     </button>
                     <button
+                      onClick={() => {
+                        setUrlToEdit(url);
+                        setShowEditDialog(true);
+                      }}
+                      className="px-3 py-1.5 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
+                    >
+                      Edit
+                    </button>
+                    <button
                       onClick={() => handleDelete(url)}
                       disabled={loadingStates.deleting === url.short_path}
                       className="px-3 py-1.5 rounded text-sm inline-flex items-center gap-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -496,6 +530,15 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setUrlToEdit(url);
+                        setShowEditDialog(true);
+                      }}
+                      className="px-3 py-1.5 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
+                    >
+                      Edit
+                    </button>
                     <button
                       onClick={() => handleToggleDeprecated(url)}
                       disabled={loadingStates.deprecating.has(url.short_path)}
@@ -588,6 +631,16 @@ export default function AdminDashboard() {
         message={`Are you sure you want to delete /${urlToDelete?.short_path}?`}
         confirmText="Delete"
         variant="red"
+      />
+
+      <EditUrlDialog
+        isOpen={showEditDialog}
+        onClose={() => {
+          setShowEditDialog(false);
+          setUrlToEdit(null);
+        }}
+        url={urlToEdit}
+        onSubmit={handleEdit}
       />
     </>
   );

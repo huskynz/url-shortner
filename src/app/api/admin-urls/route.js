@@ -42,32 +42,30 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { short_path, deprecated } = body;
+    const { short_path, redirect_url, deprecated } = body;
     
-    if (typeof short_path !== 'string' || typeof deprecated !== 'boolean') {
-      return NextResponse.json(
-        { error: 'Invalid input data' }, 
-        { status: 400 }
-      );
-    }
+    // If deprecated is provided, it's a deprecation toggle
+    if (deprecated !== undefined) {
+      const { error } = await supabase
+        .from('shortened_urls')
+        .update({ deprecated })
+        .eq('short_path', short_path);
 
-    const { error } = await supabase
-      .from('shortened_urls')
-      .update({ deprecated })
-      .eq('short_path', short_path);
+      if (error) throw error;
+    } 
+    // If redirect_url is provided, it's an edit
+    else if (redirect_url) {
+      const { error } = await supabase
+        .from('shortened_urls')
+        .update({ redirect_url })
+        .eq('short_path', short_path);
 
-    if (error) {
-      console.error('Supabase error:', error);
-      throw error;
+      if (error) throw error;
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Update error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update URL' }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to update URL' }, { status: 500 });
   }
 }
 
