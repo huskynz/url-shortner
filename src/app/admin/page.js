@@ -468,6 +468,15 @@ export default function AdminDashboard() {
                     </span>
                   </div>
                   <div className="flex flex-col gap-2">
+                  <button
+                      onClick={() => {
+                        setUrlToEdit(url);
+                        setShowEditDialog(true);
+                      }}
+                      className="px-3 py-1.5 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
+                    >
+                      Edit
+                    </button>
                     <button
                       onClick={() => handleToggleDeprecated(url)}
                       disabled={loadingStates.deprecating.has(url.short_path)}
@@ -485,15 +494,6 @@ export default function AdminDashboard() {
                       ) : (
                         url.deprecated ? 'Activate' : 'Deprecate'
                       )}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setUrlToEdit(url);
-                        setShowEditDialog(true);
-                      }}
-                      className="px-3 py-1.5 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
-                    >
-                      Edit
                     </button>
                     <button
                       onClick={() => handleDelete(url)}
