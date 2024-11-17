@@ -8,6 +8,7 @@ import AddUrlDialog from '../components/AddUrlDialog';
 import AddAdminDialog from '../components/AddAdminDialog';
 import { useRole } from '../hooks/useRole';
 import NoAccessDialog from '../components/NoAccessDialog';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const FilterSection = ({ filter, setFilter, search, setSearch, isAdmin, isOwner }) => {
   return (
@@ -60,6 +61,10 @@ export default function AdminDashboard() {
   const [showNoAccess, setShowNoAccess] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [urlToDelete, setUrlToDelete] = useState(null);
+  const [loadingStates, setLoadingStates] = useState({
+    deprecating: new Set(),
+    deleting: null
+  });
 
   useEffect(() => {
     setIsMobileView(isMobileDevice);
@@ -124,6 +129,12 @@ export default function AdminDashboard() {
   const handleToggleDeprecated = async (url) => {
     handleRestrictedAction(async () => {
       try {
+        // Add to loading state
+        setLoadingStates(prev => ({
+          ...prev,
+          deprecating: new Set([...prev.deprecating, url.short_path])
+        }));
+
         const res = await fetch('/api/admin-urls', {
           method: 'PUT',
           headers: { 
@@ -149,12 +160,24 @@ export default function AdminDashboard() {
       } catch (error) {
         console.error('Failed to toggle deprecated status:', error);
         setError('Failed to update URL status');
+      } finally {
+        // Remove from loading state
+        setLoadingStates(prev => ({
+          ...prev,
+          deprecating: new Set(
+            [...prev.deprecating].filter(path => path !== url.short_path)
+          )
+        }));
       }
     });
   };
 
   const handleDelete = async (url) => {
     handleRestrictedAction(() => {
+      setLoadingStates(prev => ({
+        ...prev,
+        deleting: url.short_path
+      }));
       setUrlToDelete(url);
       setShowConfirmDelete(true);
     });
@@ -422,19 +445,35 @@ export default function AdminDashboard() {
                   <div className="flex flex-col gap-2">
                     <button
                       onClick={() => handleToggleDeprecated(url)}
-                      className={`w-full py-2 rounded text-center ${
+                      disabled={loadingStates.deprecating.has(url.short_path)}
+                      className={`px-3 py-1.5 rounded text-sm inline-flex items-center gap-2 ${
                         url.deprecated 
                           ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20' 
                           : 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
-                      }`}
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
-                      {url.deprecated ? 'Activate' : 'Deprecate'}
+                      {loadingStates.deprecating.has(url.short_path) ? (
+                        <>
+                          <LoadingSpinner />
+                          <span>{url.deprecated ? 'Activating...' : 'Deprecating...'}</span>
+                        </>
+                      ) : (
+                        url.deprecated ? 'Activate' : 'Deprecate'
+                      )}
                     </button>
                     <button
                       onClick={() => handleDelete(url)}
-                      className="w-full py-2 rounded text-center bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                      disabled={loadingStates.deleting === url.short_path}
+                      className="px-3 py-1.5 rounded text-sm inline-flex items-center gap-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Delete
+                      {loadingStates.deleting === url.short_path ? (
+                        <>
+                          <LoadingSpinner />
+                          <span>Deleting...</span>
+                        </>
+                      ) : (
+                        'Delete'
+                      )}
                     </button>
                   </div>
                 </div>
@@ -459,19 +498,35 @@ export default function AdminDashboard() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleToggleDeprecated(url)}
-                      className={`px-3 py-1.5 text-sm rounded whitespace-nowrap ${
+                      disabled={loadingStates.deprecating.has(url.short_path)}
+                      className={`px-3 py-1.5 rounded text-sm inline-flex items-center gap-2 ${
                         url.deprecated 
                           ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20' 
                           : 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
-                      }`}
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
-                      {url.deprecated ? 'Activate' : 'Deprecate'}
+                      {loadingStates.deprecating.has(url.short_path) ? (
+                        <>
+                          <LoadingSpinner />
+                          <span>{url.deprecated ? 'Activating...' : 'Deprecating...'}</span>
+                        </>
+                      ) : (
+                        url.deprecated ? 'Activate' : 'Deprecate'
+                      )}
                     </button>
                     <button
                       onClick={() => handleDelete(url)}
-                      className="px-3 py-1.5 text-sm rounded whitespace-nowrap bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                      disabled={loadingStates.deleting === url.short_path}
+                      className="px-3 py-1.5 rounded text-sm inline-flex items-center gap-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Delete
+                      {loadingStates.deleting === url.short_path ? (
+                        <>
+                          <LoadingSpinner />
+                          <span>Deleting...</span>
+                        </>
+                      ) : (
+                        'Delete'
+                      )}
                     </button>
                   </div>
                 </div>

@@ -41,18 +41,12 @@ export default function UrlList({ initialUrls }) {
         <div className="p-8">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">URLs</h1>
-                <button
-                    onClick={() => handleAction(() => setShowAddUrlDialog(true))}
-                    className="px-4 py-2 rounded bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
-                >
-                    Add URL
-                </button>
             </div>
 
             <div className={`${isMobileView ? 'flex flex-col gap-4' : 'flex gap-4'} mb-4`}>
                 <select
                     value={filter}
-                    onChange={(e) => handleAction(() => setFilter(e.target.value))}
+                    onChange={(e) => setFilter(e.target.value)}
                     className="p-2 rounded bg-transparent border border-gray-700 text-gray-300 focus:outline-none focus:border-gray-500"
                 >
                     <option value="all">All URLs</option>
@@ -77,7 +71,16 @@ export default function UrlList({ initialUrls }) {
                     >
                         <div className="flex items-center justify-between">
                             <div>
-                                <h3 className="text-lg text-gray-200">/{url.short_path}</h3>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-lg text-gray-200">/{url.short_path}</h3>
+                                    <span className={`text-xs px-2 py-0.5 rounded ${
+                                        url.deprecated 
+                                            ? 'bg-yellow-500/10 text-yellow-500' 
+                                            : 'bg-green-500/10 text-green-500'
+                                    }`}>
+                                        {url.deprecated ? 'Deprecated' : 'Active'}
+                                    </span>
+                                </div>
                                 <a 
                                     href={url.redirect_url} 
                                     target="_blank" 
@@ -87,16 +90,14 @@ export default function UrlList({ initialUrls }) {
                                     {url.redirect_url}
                                 </a>
                             </div>
-                            <button
-                                onClick={() => handleAction(() => handleToggleDeprecated(url))}
-                                className={`px-3 py-1.5 rounded text-sm ${
-                                    url.deprecated 
-                                        ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20' 
-                                        : 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
-                                }`}
+                            <a
+                                href={`/${url.short_path}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
                             >
-                                {url.deprecated ? 'Activate' : 'Deprecate'}
-                            </button>
+                                Visit
+                            </a>
                         </div>
                     </div>
                 ))}
