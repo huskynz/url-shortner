@@ -9,28 +9,76 @@ const supabaseKey = process.env.SUPABASE_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Function to fetch the redirect URL from Supabase
+
 export async function fetchRedirectUrl(location) {
+  // Special routes - don't redirect
+  if (location === 'invaildlink' || location === 'deprecated' || location === 'urls') {
+    return null;
+  }
+
   const { data, error } = await supabase
     .from("shortened_urls")
-    .select("redirect_url")
+    .select("redirect_url, deprecated, short_path")
     .eq("short_path", location)
     .single();
 
-  console.log(data);
-
   if (error || !data) {
-    console.error("Error fetching URL from Supabase:", error);
-    return "https://www.husky.nz";  // Fallback URL in case of error or missing path
+    return {
+      redirect_url: "/invaildlink",
+      deprecated: false
+    };
   }
 
-  return data.redirect_url;
+  if (data.deprecated) {
+    return {
+      redirect_url: `/deprecated?dpl=${location}`,
+      deprecated: true
+    };
+  }
+
+  return {
+    redirect_url: data.redirect_url,
+    deprecated: false
+  };
 }
 
-// Function to handle redirection
 export async function redirectToUrl(location) {
-  const url = await fetchRedirectUrl(location);
-  redirect(url);
+  const urlData = await fetchRedirectUrl(location);
+  if (!urlData) {
+    return; // Don't redirect special routes
+  }
+  redirect(urlData.redirect_url);
+}
+
+// Allow us to add and delete URLs from Supabase
+export async function addUrl(shortPath, redirectUrl) {
+  const { error } = await supabase
+    .from("shortened_urls")
+    .insert({ short_path: shortPath, redirect_url: redirectUrl });
+  if (error) console.error("Error adding URL:", error);
+  return !error;
+}
+
+export async function deleteUrl(shortPath) {
+  const { error } = await supabase
+    .from("shortened_urls")
+    .delete()
+    .eq("short_path", shortPath);
+  if (error) console.error("Error deleting URL:", error);
+  return !error;
+}
+
+// Funtion to allow /urls to fetch all URLs from Supabase
+export async function fetchDisplayUrls() {
+  const { data, error } = await supabase
+    .from("shortened_urls")
+    .select("short_path, redirect_url, deprecated");
+  if (error) {
+    console.error("Error fetching URLs:", error);
+    return [];
+  }
+
+  return data;
 }
 
 
@@ -71,4 +119,5 @@ export async function logUserData(location) {
     } catch (error) {
         console.error('Error sending message to Discord:', error);
     }
+
 }
