@@ -26,6 +26,10 @@ export async function GET(req) {
 }
 
 export async function POST(request) {
+  if (!await verifyAuth(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { github_username, role = 'viewer' } = await request.json();
     

@@ -8,11 +8,13 @@ const supabase = createClient(
 );
 
 export async function GET(req) {
-  if (!await verifyAuth(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const isAuthorized = await verifyAuth(req);
+    if (!isAuthorized) {
+      console.warn('Unauthorized access attempt');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { data, error } = await supabase
       .from('shortened_urls')
       .select('*');
@@ -20,14 +22,24 @@ export async function GET(req) {
     if (error) throw error;
     return NextResponse.json(data || []);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch URLs' }, { status: 500 });
+    console.error('Error in GET /api/admin-urls:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-export async function POST(request) {
+export async function POST(req) {
+  if (!await verifyAuth(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const body = await request.json();
+    const body = await req.json();
+    if (!body) throw new Error('No body provided');
+
     const { short_path, redirect_url } = body;
+    if (!short_path || !redirect_url) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
     
     const { error } = await supabase
       .from('shortened_urls')
@@ -44,12 +56,15 @@ export async function POST(request) {
   }
 }
 
-export async function PUT(request) {
+export async function PUT(req) {
+  if (!await verifyAuth(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const body = await request.json();
+    const body = await req.json();
     const { short_path, redirect_url, deprecated } = body;
     
-    // If deprecated is provided, it's a deprecation toggle
     if (deprecated !== undefined) {
       const { error } = await supabase
         .from('shortened_urls')
@@ -58,7 +73,6 @@ export async function PUT(request) {
 
       if (error) throw error;
     } 
-    // If redirect_url is provided, it's an edit
     else if (redirect_url) {
       const { error } = await supabase
         .from('shortened_urls')
@@ -74,10 +88,13 @@ export async function PUT(request) {
   }
 }
 
-export async function DELETE(request) {
+export async function DELETE(req) {
+  if (!await verifyAuth(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const body = await request.json();
-    const { short_path } = body;
+    const { short_path } = await req.json();
     
     const { error } = await supabase
       .from('shortened_urls')
