@@ -91,14 +91,14 @@ export async function logUserData(location) {
 
     const ip = header.get('x-forwarded-for') || 'Unknown IP'; // Fallback if IP is not found
     const userAgent = header.get("user-agent") || "Unknown";
-
+    const ipInfoUrl = 'https://whatismyipaddress.com/ip'
     const payload = {
         content: `
         🚨 New visitor detected!
         **IP Address**: ${ip}
         **User-Agent**: ${userAgent}
         **Redirect**: ${location}
-        **Ip Info**: https://whatismyipaddress.com/ip/${ip}
+        **Ip Info**: ${ipInfoUrl}/${ip}
         \n
         `,
       };
