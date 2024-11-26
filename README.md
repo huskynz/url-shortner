@@ -1,29 +1,48 @@
-# Create T3 App
+<br/>
+<p align="center">
+  <a href="https://github.com/HuskyNZ/10">
+    <img src="https://serv.hnz.li/logo/default.png" alt="Logo" width="80" height="80">
+  </a>
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+  <h3 align="center">HuskyNZ's Url Shortner</h3>
+  <br>
 
-## What's next? How do I make an app with this?
+</p>
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+![Contributors](https://img.shields.io/github/contributors/HuskyNZ/url-shortner?color=dark-green) ![Issues](https://img.shields.io/github/issues/HuskyNZ/url-shortner) ![License](https://img.shields.io/github/license/HuskyNZ/url-shortner)
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## About The Project
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+This is a NextJS App that uses suppabase to create a URL shortner
 
-## Learn More
+## Built With
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+- [NextJS](https://nextjs.org/)
+- [Tailwind](https://tailwindcss.com/)
+- [Cloudlfare](https://www.cloudflare.com/)
+- [Github](https://github.com/)
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+## Roadmap
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+Im working on getting content into the blog and projects
 
-## How do I deploy this?
+## Contributing
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+Contributions are what make the open source community such an amazing place to be learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+- If you have suggestions for adding or removing projects, feel free to [open an issue](https://github.com/huskynz/10/issues/new) to discuss it, or directly create a pull request after you edit a file with necessary changes. I only accept incoming pull requests on the dev branch for my sanity
+- Please make sure you check your spelling and grammar.
+- Create individual PR for each suggestion.
+
+## License
+
+Distributed under the MIT License. See [LICENSE](https://github.com/huskynz/url-shortner/blob/master/LICENSE) for more information.
+
+## Authors
+
+- [HuskyNZ](https://www.husky.nz)
+
+## Acknowledgements
+- [@not-my-username](https://github.com/not-my-username)
+- [Cloudflare](https://cloudflare.com)
+
