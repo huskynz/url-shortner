@@ -1,10 +1,14 @@
-// app/redirectUtils.ts
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-const supabaseUrl = process.env.SUPABASE_URL as string;
-const supabaseKey = process.env.SUPABASE_KEY as string;
+// Ensure the environment variables are correctly set.
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Supabase URL or Key not defined');
+}
 
 const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey);
 
@@ -58,8 +62,12 @@ export async function addUrl(shortPath: string, redirectUrl: string): Promise<bo
   const { error } = await supabase
     .from('shortened_urls')
     .insert({ short_path: shortPath, redirect_url: redirectUrl });
-  if (error) console.error('Error adding URL:', error);
-  return !error;
+
+  if (error) {
+    console.error('Error adding URL:', error);
+    return false;
+  }
+  return true;
 }
 
 export async function deleteUrl(shortPath: string): Promise<boolean> {
@@ -67,14 +75,19 @@ export async function deleteUrl(shortPath: string): Promise<boolean> {
     .from('shortened_urls')
     .delete()
     .eq('short_path', shortPath);
-  if (error) console.error('Error deleting URL:', error);
-  return !error;
+
+  if (error) {
+    console.error('Error deleting URL:', error);
+    return false;
+  }
+  return true;
 }
 
 export async function fetchDisplayUrls(): Promise<RedirectUrlData[]> {
   const { data, error } = await supabase
     .from('shortened_urls')
     .select('short_path, redirect_url, deprecated');
+
   if (error) {
     console.error('Error fetching URLs:', error);
     return [];
@@ -83,7 +96,11 @@ export async function fetchDisplayUrls(): Promise<RedirectUrlData[]> {
   return data || [];
 }
 
-const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL as string;
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
+
+if (!DISCORD_WEBHOOK_URL) {
+  throw new Error('Discord Webhook URL is not defined');
+}
 
 export async function logUserData(location: string): Promise<void> {
   const header = await headers();
@@ -103,6 +120,12 @@ export async function logUserData(location: string): Promise<void> {
   };
 
   try {
+    const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
+
+    if (!DISCORD_WEBHOOK_URL) {
+      throw new Error('Discord Webhook URL is not defined');
+    }
+    
     const response = await fetch(DISCORD_WEBHOOK_URL, {
       method: 'POST',
       headers: {
@@ -110,6 +133,7 @@ export async function logUserData(location: string): Promise<void> {
       },
       body: JSON.stringify(payload),
     });
+    
 
     if (!response.ok) {
       console.error('Failed to send message to Discord:', response.statusText);
