@@ -1,13 +1,13 @@
-// [id]/page.tsx
 import { fetchRedirectUrl, logUserData } from '../lib/utils';
 import { redirect } from 'next/navigation';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function Page({ params }: PageProps): Promise<void> {
-  const { id } = await params;
+export default async function Page({ params }: PageProps) {
+  const { id } = await params; // Await the params here.
+
   await logUserData(id);
 
   const urlData = await fetchRedirectUrl(id);
