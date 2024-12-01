@@ -69,7 +69,7 @@ export default function AdminDashboard() {
   });
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [urlToEdit, setUrlToEdit] = useState(null);
-  const [showApiKeys, setShowApiKeys] = useState(false);
+ // const [showApiKeys, setShowApiKeys] = useState(false);
 
   useEffect(() => {
     setIsMobileView(isMobileDevice);
@@ -404,12 +404,6 @@ export default function AdminDashboard() {
                     Manage Admins
                   </button>
                 )}
-                  <button
-        onClick={() => setShowApiKeys(true)}
-        className="px-4 py-2 rounded text-sm bg-pink-500/10 text-pink-500 hover:bg-pink-500/20"
-      >
-        Manage API Keys
-      </button>
               </>
             ) : (
               // Desktop Layout - Updated
@@ -428,12 +422,7 @@ export default function AdminDashboard() {
                     Manage Admins
                   </button>
                 )}
-                 <button
-        onClick={() => setShowApiKeys(true)}
-        className="px-4 py-2 rounded text-sm bg-pink-500/10 text-pink-500 hover:bg-pink-500/20"
-      >
-        Manage API Keys
-      </button>
+              
                 <div className="flex items-center gap-3">
                   <button 
                     onClick={() => signOut()} 
@@ -655,11 +644,6 @@ export default function AdminDashboard() {
         }}
         url={urlToEdit}
         onSubmit={handleEdit}
-      />
-
-      <ApiKeyDialog 
-        isOpen={showApiKeys} 
-        onClose={() => setShowApiKeys(false)} 
       />
     </>
   );
