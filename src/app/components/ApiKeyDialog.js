@@ -21,17 +21,46 @@ export default function ApiKeyDialog({ isOpen, onClose }) {
   const [actionType, setActionType] = useState(null);
 
   const loadKeys = async () => {
+    setLoading(true);
     try {
       const res = await fetch('/api/admin-keys');
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+  
+      // Check if the response is okay
+      if (!res.ok) {
+        throw new Error(`API responded with status: ${res.status}`);
+      }
+  
+      const text = await res.text();  // Get raw text from response
+  
+      // Check if the response is empty
+      if (!text) {
+        throw new Error('Empty response from API');
+      }
+  
+      let data;
+  
+      try {
+        // Try to parse the response as JSON
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error('Failed to parse response as JSON');
+      }
+  
+      // Check if the data has an error property
+      if (data.error) {
+        throw new Error(data.error);
+      }
+  
+      // Set the data (API keys)
       setKeys(data);
     } catch (error) {
+      // Handle the error
       setError(error.message || 'Failed to load API keys');
     } finally {
       setLoading(false);
     }
   };
+  
 
   useEffect(() => {
     if (isOpen) {
