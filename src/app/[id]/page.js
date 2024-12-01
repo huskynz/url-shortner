@@ -1,15 +1,11 @@
-import { fetchRedirectUrl, logUserData } from '../lib/utils';
+// [id]/page.js
+import { fetchRedirectUrl, logUserData } from '../utils';
 import { redirect } from 'next/navigation';
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default async function Page({ params }: PageProps) {
-  const { id } = await params; // Await the params here.
-
+export default async function Page({ params }) {
+  const { id } = params;
   await logUserData(id);
-
+  
   const urlData = await fetchRedirectUrl(id);
 
   // Handle special routes
