@@ -4,6 +4,7 @@ import { MobileIcon, DesktopIcon } from '@radix-ui/react-icons';
 import { useDeviceDetect } from '../hooks/useDeviceDetect';
 import { useRole } from '../hooks/useRole';
 import NoAccessDialog from '../components/NoAccessDialog';
+import { useSession, signIn, signOut } from 'next-auth/react';
 
 export default function UrlList({ initialUrls }) {
     const [urls, setUrls] = useState(initialUrls);
@@ -39,10 +40,27 @@ export default function UrlList({ initialUrls }) {
 
     return (
         <div className="p-8">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">URLs</h1>
-            </div>
+            <div className="flex items-center gap-4">
+            <img 
+              src="https://serv.husky.nz/logo/default180.png" 
+              width={50} 
+              height={50} 
+              alt="Logo"
+              className="rounded"
+            />
+            <h1 className="text-2xl font-bold">HuskyNZ URL Shortner</h1>
+                  <button 
+                    onClick={() => signIn()} 
+                    className="bg-green-500/10 text-green-500 px-4 py-2 rounded hover:bg-green-500/20 text-sm align-right"
+                  >
+                    Sign In
+                  </button> 
+              
+              
+          </div>
 
+
+          <br />
             <div className={`${isMobileView ? 'flex flex-col gap-4' : 'flex gap-4'} mb-4`}>
                 <select
                     value={filter}
