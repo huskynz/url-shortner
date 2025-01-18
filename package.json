@@ -1,8 +1,10 @@
 {
-  "name": "url-next",
-  "version": "0.1.0",
+  "name": "huskynz-urlshortner",
+  "version": "2.0.0",
   "private": true,
-  "scripts": {
+  "packageManager": "yarn@4.6.0",
+
+ "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
