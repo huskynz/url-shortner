@@ -37,29 +37,36 @@ export default function UrlList({ initialUrls }) {
             }
             return true;
         });
-
+        const ver = process.env.Version_Number;
     return (
         <div className="p-8">
+        <div className="flex items-center justify-between gap-4">
+            {/* Left section: Logo and text */}
             <div className="flex items-center gap-4">
-            <img 
-              src="https://serv.husky.nz/logo/default180.png" 
-              width={50} 
-              height={50} 
-              alt="Logo"
-              className="rounded"
-            />
-            <h1 className="text-2xl font-bold">HuskyNZ URL Shortner</h1>
-                  <button 
-                    onClick={() => signIn()} 
-                    className="bg-green-500/10 text-green-500 px-4 py-2 rounded hover:bg-green-500/20 text-sm align-right"
-                  >
-                    Sign In
-                  </button> 
-              
-              
-          </div>
-
-
+                <img 
+                  src="https://serv.husky.nz/logo/default180.png" 
+                  width={50} 
+                  height={50} 
+                  alt="Logo"
+                  className="rounded"
+                />
+                <div>
+                    <h1 className="text-2xl font-bold">HuskyNZ URL Shortner</h1>
+                    <p className=" text-gray-400">
+                        Version: V{process.env.NEXT_PUBLIC_Version_Number} | Environment:{" "}<span className={`${ process.env.NEXT_PUBLIC_ENV === "Development" ? "uppercase text-red-500" : "text-green-400" }`}> {process.env.NEXT_PUBLIC_ENV}</span>
+                    </p>
+                </div>
+            </div>
+            
+            {/* Right section: Sign-in button */}
+            <button 
+                onClick={() => signIn()} 
+                className="bg-green-500/10 text-green-500 px-4 py-2 rounded hover:bg-green-500/20 text-sm"
+            >
+                Sign In
+            </button>
+        </div>
+    
           <br />
             <div className={`${isMobileView ? 'flex flex-col gap-4' : 'flex gap-4'} mb-4`}>
                 <select
