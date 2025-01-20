@@ -17,7 +17,7 @@ export async function fetchRedirectUrl(location) {
   }
 
   const { data, error } = await supabase
-    .from("shortened_urls")
+    .from(process.env.SUPABASE_DB_NAME)
     .select("redirect_url, deprecated, short_path")
     .eq("short_path", location)
     .single();
@@ -53,7 +53,7 @@ export async function redirectToUrl(location) {
 // Allow us to add and delete URLs from Supabase
 export async function addUrl(shortPath, redirectUrl) {
   const { error } = await supabase
-    .from("shortened_urls")
+    .from(process.env.SUPABASE_DB_NAME)
     .insert({ short_path: shortPath, redirect_url: redirectUrl });
   if (error) console.error("Error adding URL:", error);
   return !error;
@@ -61,7 +61,7 @@ export async function addUrl(shortPath, redirectUrl) {
 
 export async function deleteUrl(shortPath) {
   const { error } = await supabase
-    .from("shortened_urls")
+    .from(process.env.SUPABASE_DB_NAME)
     .delete()
     .eq("short_path", shortPath);
   if (error) console.error("Error deleting URL:", error);
@@ -71,7 +71,7 @@ export async function deleteUrl(shortPath) {
 // Funtion to allow /urls to fetch all URLs from Supabase
 export async function fetchDisplayUrls() {
   const { data, error } = await supabase
-    .from("shortened_urls")
+    .from(process.env.SUPABASE_DB_NAME)
     .select("short_path, redirect_url, deprecated");
   if (error) {
     console.error("Error fetching URLs:", error);
