@@ -15,8 +15,9 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+   
     const { data, error } = await supabase
-      .from('shortened_urls')
+      .from(process.env.SUPABASE_DB_NAME)
       .select('*');
 
     if (error) throw error;
@@ -42,7 +43,7 @@ export async function POST(req) {
     }
     
     const { error } = await supabase
-      .from('shortened_urls')
+      .from(process.env.SUPABASE_DB_NAME)
       .insert([{ 
         short_path, 
         redirect_url,
@@ -67,7 +68,7 @@ export async function PUT(req) {
     
     if (deprecated !== undefined) {
       const { error } = await supabase
-        .from('shortened_urls')
+        .from(process.env.SUPABASE_DB_NAME)
         .update({ deprecated })
         .eq('short_path', short_path);
 
@@ -75,7 +76,7 @@ export async function PUT(req) {
     } 
     else if (redirect_url) {
       const { error } = await supabase
-        .from('shortened_urls')
+        .from(process.env.SUPABASE_DB_NAME)
         .update({ redirect_url })
         .eq('short_path', short_path);
 
@@ -97,7 +98,7 @@ export async function DELETE(req) {
     const { short_path } = await req.json();
     
     const { error } = await supabase
-      .from('shortened_urls')
+      .from(process.env.SUPABASE_DB_NAME)
       .delete()
       .eq('short_path', short_path);
 
