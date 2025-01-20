@@ -69,7 +69,7 @@ export default function AdminDashboard() {
   });
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [urlToEdit, setUrlToEdit] = useState(null);
- // const [showApiKeys, setShowApiKeys] = useState(false);
+  //const [showApiKeys, setShowApiKeys] = useState(false);
 
   useEffect(() => {
     setIsMobileView(isMobileDevice);
@@ -356,6 +356,7 @@ export default function AdminDashboard() {
 
   const showManageAdmins = isOwner;
   const showUrlManagement = isAdmin || isOwner;
+  const logourl = "https://serv.husky.nz/logo/default180.png";
 
   return (
     <>
@@ -363,7 +364,7 @@ export default function AdminDashboard() {
         <div className={`${isMobileView ? 'flex flex-col items-center' : 'flex justify-between items-center'} mb-6`}>
           <div className="flex items-center gap-4">
             <img 
-              src="https://serv.husky.nz/logo/default180.png" 
+              src={logourl} 
               width={50} 
               height={50} 
               alt="Logo"
