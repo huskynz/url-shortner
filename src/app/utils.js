@@ -85,39 +85,29 @@ export async function fetchDisplayUrls() {
 // Discord webhook URL (replace with your actual webhook URL)
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
-// Function to send a message to Discord webhook
+// Log user data in Supabase
 export async function logUserData(location) {
-    const header = headers()
+  const header = headers()
 
-    const ip = header.get('x-forwarded-for') || 'Unknown IP'; // Fallback if IP is not found
-    const userAgent = header.get("user-agent") || "Unknown";
-    const ipInfoUrl = 'https://whatismyipaddress.com/ip'
-    const payload = {
-        content: `
-        🚨 New visitor detected!
-        **IP Address**: ${ip}
-        **User-Agent**: ${userAgent}
-        **Redirect**: ${location}
-        **Ip Info**: ${ipInfoUrl}/${ip}
-        \n
-        `,
-      };
-    try {
-        const response = await fetch(DISCORD_WEBHOOK_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload),
-        });
+  const ip = header.get('x-forwarded-for') || 'Unknown IP';
+  const userAgent = header.get("user-agent") || "Unknown";
+  const environment = process.env.NEXT_PUBLIC_ENV || 'unknown';
+  const versionNumber = process.env.NEXT_PUBLIC_Version_Number || 'unknown';
 
-        if (!response.ok) {
-            console.error('Failed to send message to Discord:', response.statusText);
-        } else {
-            console.log('Message sent to Discord successfully!');
-        }
-    } catch (error) {
-        console.error('Error sending message to Discord:', error);
+  // Inserting log data into Supabase
+  const { error } = await supabase.from('visits').insert([
+    {
+      short_path: location,
+      ip_address: ip,
+      user_agent: userAgent,
+      environment: environment,
+      version_number: versionNumber,
     }
+  ]);
 
+  if (error) {
+    console.error('Error logging user data to Supabase:', error);
+  } else {
+    console.log('User data logged successfully!');
+  }
 }
