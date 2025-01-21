@@ -87,15 +87,15 @@ const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
 // Log user data in Supabase
 export async function logUserData(location) {
-  const headers = (typeof window !== "undefined" && window?.headers) || {}; // You may replace this with how you fetch headers in your app
+  const header = headers()
 
-  const ip = headers['x-forwarded-for'] || 'Unknown IP'; // Fallback if IP is not found
-  const userAgent = headers['user-agent'] || 'Unknown';
+  const ip = header.get('x-forwarded-for') || 'Unknown IP';
+  const userAgent = header.get("user-agent") || "Unknown";
   const environment = process.env.NEXT_PUBLIC_ENV || 'unknown';
   const versionNumber = process.env.NEXT_PUBLIC_Version_Number || 'unknown';
 
   // Inserting log data into Supabase
-  const { error } = await supabase.from('user_logs').insert([
+  const { error } = await supabase.from('visits').insert([
     {
       short_path: location,
       ip_address: ip,
