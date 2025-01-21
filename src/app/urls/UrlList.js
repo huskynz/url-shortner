@@ -53,7 +53,7 @@ export default function UrlList({ initialUrls }) {
                 <div>
                     <h1 className="text-2xl font-bold">HuskyNZ URL Shortner</h1>
                     <p className=" text-gray-400">
-                        Version: V{process.env.NEXT_PUBLIC_Version_Number} | Environment:{" "}<span className={`${ process.env.NEXT_PUBLIC_ENV === "Development" ? "uppercase text-red-500" : "text-green-400" }`}> {process.env.NEXT_PUBLIC_ENV}</span>
+                        Version: {process.env.NEXT_PUBLIC_Version_Number} | Environment:{" "}<span className={`${ process.env.NEXT_PUBLIC_ENV === "Development" ? "uppercase text-red-500" : "text-green-400" }`}> {process.env.NEXT_PUBLIC_ENV}</span>
                     </p>
                 </div>
             </div>
