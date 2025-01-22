@@ -5,8 +5,7 @@
   "packageManager": "yarn@4.6.0",
 
  "scripts": {
-    "dev": "op run --env-file=.env -- yarn run rundev",
-    "rundev": "next dev",
+    "dev": "op run --env-file=.env -- next dev -p 80",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
