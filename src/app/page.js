@@ -1,111 +1,118 @@
 'use client'
 import React, { useState } from "react";
+import { signIn } from "next-auth/react";
 
-import './fonts/brands.css'
-import './fonts/skeleton-dark.css'
-import './globals.css'
+
+
 const Page = () => {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
   
   const links = [
     {
-        name: "Main Website",
-        icon: "generic-website",
-        url: "/m",
-        buttonClass: "button-default"
-      },
-    {
-      name: "Blog",
-      icon: "blog",
-      url: "/blog",
-      buttonClass: "button-default"
-    },
-    {
-      name: "Email",
-      icon: "email",
-      url: "mailto:mail@husky.nz",
-      buttonClass: "button-default"
-    },
-    {
-      name: "This sites code",
-      icon: "generic-code",
-      url: "/gurl",
-      buttonClass: "button-github"
-    },
-    {
-      name: "GitHub",
-      icon: "github",
-      url: "/github",
-      buttonClass: "button-github"
-    },
+      name: "Main Website",
+      icon: "https://serv.husky.nz/logo/default180.png",
+      url: "/m",
+      buttonClass: "bg-gray-800 hover:bg-gray-700"
+  },
+  {
+    name: "View all shortened urls",
+    icon: "https://serv.husky.nz/urlicons/generic-website.svg",
+    url: "/urls",
+    buttonClass: "bg-[#025436] hover:bg-[#1b1f23]"
+  },
     {
       name: "Twitch",
-      icon: "twitch",
+      icon: "https://serv.husky.nz/urlicons/twitch.svg",
       url: "/twitch",
-      buttonClass: "button-twitch"
+      buttonClass: "bg-[#6441a5] hover:bg-[#553a8e]"
     },
     {
       name: "YouTube",
-      icon: "youtube",
+      icon: "https://serv.husky.nz/urlicons/youtube.svg",
       url: "/youtube",
-      buttonClass: "button-yt"
+      buttonClass: "bg-[#8a0000] hover:bg-[#cc0000]"
+    },
+    {
+      name: "GitHub",
+      icon: "https://serv.husky.nz/urlicons/github.svg",
+      url: "/github",
+      buttonClass: "bg-[#24292e] hover:bg-[#1b1f23]"
+    },
+    {
+      name: "Email",
+      icon: "https://serv.husky.nz/urlicons/email.svg",
+      url: "mailto:mail@husky.nz",
+      buttonClass: "bg-gray-800 hover:bg-gray-700"
+    },
+    {
+      name: "This sites code",
+      icon: "https://serv.husky.nz/urlicons/generic-code.svg",
+      url: "/gurl",
+      buttonClass: "bg-[#24292e] hover:bg-[#1b1f23]"
     }
-  ];
+];
 
-  return (
-    <div style={dark ? {
-      color: "#FFFFFF",
-      backgroundColor: "#292929",
-      minHeight: "100vh",
-      padding: "20px"
-    } : {
-        color: "#FFFFFF",
-        backgroundColor: "#292929",
-        minHeight: "100vh",
-        padding: "20px"
-    }}>
-      <div className="container">
-        <div className="row">
-          <div className="column" style={{ paddingTop: "10%" }}>
-            <center>
-            <img src="//serv.husky.nz/logo/default180.png" alt="Logo"/>
-            <h1>HuskyNZ</h1>
-            </center>
-            <p>
-              You can find us on the following platforms:
+return (
+  <div style={dark ? {
+    color: "#FFFFFF",
+    backgroundColor: "#000000",
+    minHeight: "100vh"
+  } : {}}>
+    {/* Full-width nav */}
+    <div className="w-full px-4 py-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <img 
+            src="https://serv.husky.nz/logo/default180.png" 
+            width={50} 
+            height={50} 
+            alt="Logo"
+            className="rounded"
+          />
+          <div>
+            <h1 className="text-2xl font-bold">HuskyNZ URL Shortner</h1>
+            <p className="text-gray-400">
+              Version: {process.env.NEXT_PUBLIC_Version_Number} | Environment:{" "}
+              <span className={`${process.env.NEXT_PUBLIC_ENV === "Development" ? "uppercase text-red-500" : "text-green-400"}`}>
+                {process.env.NEXT_PUBLIC_ENV}
+              </span>
             </p>
-            <br />
-            <a href="/urls">View all shortened urls</a>
-            <center>
-            <br />
-            {links.map((link, index) => (
-              <React.Fragment key={index}>
-                <a 
-                  className={`button ${link.buttonClass}`} 
-                  href={link.url} 
-                  target="_blank" 
-                  rel="noreferrer"
-                >
-                    <center>
-                  <img 
-                    className="icon" 
-                    src={`https://serv.husky.nz/urlicons/${link.icon}.svg`} 
-                    alt={`${link.name} Logo`} 
-                    width={900}
-                    height={900}
-                  />
-                  </center>
-                  {link.name}
-                </a>
-                <br />
-              </React.Fragment>
-            ))}
-            </center>
           </div>
+        </div>
+        
+      </div>
+    </div>
+
+    {/* Centered content */}
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="flex flex-col items-center">
+        <p className="text-center mb-4  font-bold text-2xl">
+          You can find us on the following platforms
+        </p>
+        
+        <div className="w-full flex flex-col items-center gap-4">
+          {links.map((link, index) => (
+            <a 
+              key={index}
+              className={`${link.buttonClass} flex items-center justify-center w-full max-w-md p-4 rounded-lg transition-all hover:scale-105`}
+              href={link.url} 
+              target="_blank" 
+              rel="noreferrer"
+            >
+              <img 
+                className="w-12 h-12 mr-3"
+                src={`${link.icon}`} 
+                alt={`${link.name} Logo`} 
+                width={48}
+                height={48}
+              />
+              <span className="text-white text-lg">{link.name}</span>
+            </a>
+          ))}
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
-
 export default Page;
