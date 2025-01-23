@@ -37,37 +37,35 @@ export default function UrlList({ initialUrls }) {
             }
             return true;
         });
-        const ver = process.env.Version_Number;
+
     return (
-        <div className="p-8">
-        <div className="flex items-center justify-between gap-4">
-            {/* Left section: Logo and text */}
-            <div className="flex items-center gap-4">
-                <img 
-                  src="https://serv.husky.nz/logo/default180.png" 
-                  width={50} 
-                  height={50} 
-                  alt="Logo"
-                  className="rounded"
-                />
-                <div>
-                    <h1 className="text-2xl font-bold">HuskyNZ URL Shortner</h1>
-                    <p className=" text-gray-400">
-                        Version: {process.env.NEXT_PUBLIC_Version_Number} | Environment:{" "}<span className={`${ process.env.NEXT_PUBLIC_ENV === "Development" ? "uppercase text-red-500" : "text-green-400" }`}> {process.env.NEXT_PUBLIC_ENV}</span>
-                    </p>
+        <div className="flex flex-col min-h-screen p-8">
+            <div className="flex items-center justify-between gap-4">
+                {/* Left section: Logo and text */}
+                <div className="flex items-center gap-4 pb-5">
+                    <img 
+                        src="https://serv.husky.nz/logo/default180.png" 
+                        width={50} 
+                        height={50} 
+                        alt="Logo"
+                        className="rounded"
+                    />
+                    <div className=''>
+                        <h1 className="text-2xl font-bold">HuskyNZ URL Shortner</h1>
+                        <p className=" text-gray-400">
+                            Version: {process.env.NEXT_PUBLIC_Version_Number} | Environment:{" "}<span className={`${ process.env.NEXT_PUBLIC_ENV === "Development" ? "uppercase text-red-500" : "text-green-400" }`}> {process.env.NEXT_PUBLIC_ENV}</span>
+                        </p>
+                    </div>
                 </div>
+                
+                {/* Right section: Sign-in button */}
+                <button 
+                    onClick={() => signIn()} 
+                    className="bg-green-500/10 text-green-500 px-4 py-2 rounded hover:bg-green-500/20 text-sm"
+                >
+                    Sign In
+                </button>
             </div>
-            
-            {/* Right section: Sign-in button */}
-            <button 
-                onClick={() => signIn()} 
-                className="bg-green-500/10 text-green-500 px-4 py-2 rounded hover:bg-green-500/20 text-sm"
-            >
-                Sign In
-            </button>
-        </div>
-    
-          <br />
             <div className={`${isMobileView ? 'flex flex-col gap-4' : 'flex gap-4'} mb-4`}>
                 <select
                     value={filter}
@@ -132,6 +130,12 @@ export default function UrlList({ initialUrls }) {
                 isOpen={showNoAccess} 
                 onClose={() => setShowNoAccess(false)} 
             />
+
+            {/* Footer */}
+            <footer className="mt-auto text-center text-gray-500">
+                <p >© 2025 HuskyNZ. All rights reserved. | You can view this site source code <a href='/ghm' className='text-white  underline'>here</a></p>
+                <p>By using this site you agree to HuskyNZ's <a href='https://legal.husky.nz/toc' className='text-white underline'>Terms of use</a> and <a href='https://legal.husky.nz/Privacy-Policy' className='text-white underline'>Privacy policy</a> </p>
+            </footer>
         </div>
     );
 }
