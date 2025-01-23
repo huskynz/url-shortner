@@ -10,7 +10,6 @@ import { useRole } from '../hooks/useRole';
 import NoAccessDialog from '../components/NoAccessDialog';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EditUrlDialog from '../components/EditUrlDialog';
-import ApiKeyDialog from '../components/ApiKeyDialog';
 
 const FilterSection = ({ filter, setFilter, search, setSearch, isAdmin, isOwner }) => {
   return (
@@ -69,7 +68,7 @@ export default function AdminDashboard() {
   });
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [urlToEdit, setUrlToEdit] = useState(null);
-  //const [showApiKeys, setShowApiKeys] = useState(false);
+  
 
   useEffect(() => {
     setIsMobileView(isMobileDevice);
@@ -405,6 +404,7 @@ export default function AdminDashboard() {
                     Manage Admins
                   </button>
                 )}
+               
               </>
             ) : (
               // Desktop Layout - Updated
@@ -423,6 +423,7 @@ export default function AdminDashboard() {
                     Manage Admins
                   </button>
                 )}
+          
               
                 <div className="flex items-center gap-3">
                   <button 
@@ -646,6 +647,7 @@ export default function AdminDashboard() {
         url={urlToEdit}
         onSubmit={handleEdit}
       />
+   
     </>
   );
 } 
