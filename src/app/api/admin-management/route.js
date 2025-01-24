@@ -8,8 +8,32 @@ const supabase = createClient(
 );
 
 export async function GET(req) {
-  if (!await verifyAuth(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Check for API key in Authorization header
+  const authHeader = req.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const apiKey = authHeader.substring(7);
+    
+    // Validate API key
+    const { data: keyData, error: keyError } = await supabase
+      .from('api_keys')
+      .select('*')
+      .eq('key', apiKey)
+      .eq('is_active', true)
+      .single();
+
+    if (keyError || !keyData) {
+      return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+    }
+
+    // Check if key is expired
+    if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
+      return NextResponse.json({ error: 'Expired API key' }, { status: 401 });
+    }
+  } else {
+    // Fall back to session auth if no API key
+    if (!await verifyAuth(req)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {
@@ -85,4 +109,4 @@ export async function PUT(request) {
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update admin role' }, { status: 500 });
   }
-} 
+}

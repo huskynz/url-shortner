@@ -10,6 +10,8 @@ import { useRole } from '../hooks/useRole';
 import NoAccessDialog from '../components/NoAccessDialog';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EditUrlDialog from '../components/EditUrlDialog';
+import ApiKeyDialog from '../components/ApiKeyDialog';
+
 
 const FilterSection = ({ filter, setFilter, search, setSearch, isAdmin, isOwner }) => {
   return (
@@ -68,7 +70,7 @@ export default function AdminDashboard() {
   });
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [urlToEdit, setUrlToEdit] = useState(null);
-  
+  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
 
   useEffect(() => {
     setIsMobileView(isMobileDevice);
@@ -397,13 +399,21 @@ export default function AdminDashboard() {
                   Add URL
                 </button>
                 {showManageAdmins && (
-                  <button
-                    onClick={() => handleAdminAction(() => setIsAddAdminOpen(true))}
-                    className="px-4 py-2 rounded text-sm bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors"
-                  >
-                    Manage Admins
-                  </button>
-                )}
+  <>
+    <button
+      onClick={() => handleAdminAction(() => setIsAddAdminOpen(true))}
+      className="px-4 py-2 rounded text-sm bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors"
+    >
+      Manage Admins
+    </button>
+    <button
+      onClick={() => handleAdminAction(() => setIsApiKeyDialogOpen(true))}
+      className="px-4 py-2 rounded text-sm bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 transition-colors"
+    >
+      Manage API Keys
+    </button>
+  </>
+)}
                
               </>
             ) : (
@@ -415,15 +425,22 @@ export default function AdminDashboard() {
                 >
                   Add URL
                 </button>
-                {showManageAdmins && (
-                  <button
-                    onClick={() => handleAdminAction(() => setIsAddAdminOpen(true))}
-                    className="px-4 py-2 rounded text-sm bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors"
-                  >
-                    Manage Admins
-                  </button>
-                )}
-          
+  {showManageAdmins && (
+  <>
+    <button
+      onClick={() => handleAdminAction(() => setIsAddAdminOpen(true))}
+      className="px-4 py-2 rounded text-sm bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors"
+    >
+      Manage Admins
+    </button>
+    <button
+      onClick={() => handleAdminAction(() => setIsApiKeyDialogOpen(true))}
+      className="px-4 py-2 rounded text-sm bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 transition-colors"
+    >
+      Manage API Keys
+    </button>
+  </>
+)}        
               
                 <div className="flex items-center gap-3">
                   <button 
@@ -647,6 +664,10 @@ export default function AdminDashboard() {
         url={urlToEdit}
         onSubmit={handleEdit}
       />
+      <ApiKeyDialog 
+  isOpen={isApiKeyDialogOpen}
+  onClose={() => setIsApiKeyDialogOpen(false)}
+/>
    
     </>
   );
