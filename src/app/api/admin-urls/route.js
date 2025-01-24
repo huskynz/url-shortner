@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from '@/app/lib/auth';
+import { validateRequest } from '@/app/lib/authMiddleware';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -9,13 +9,11 @@ const supabase = createClient(
 
 export async function GET(req) {
   try {
-    const isAuthorized = await verifyAuth(req);
-    if (!isAuthorized) {
+    if (!await validateRequest(req)) {
       console.warn('Unauthorized access attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-   
     const { data, error } = await supabase
       .from(process.env.SUPABASE_DB_NAME)
       .select('*');
@@ -29,7 +27,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  if (!await verifyAuth(req)) {
+  if (!await validateRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -58,7 +56,7 @@ export async function POST(req) {
 }
 
 export async function PUT(req) {
-  if (!await verifyAuth(req)) {
+  if (!await validateRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -90,7 +88,7 @@ export async function PUT(req) {
 }
 
 export async function DELETE(req) {
-  if (!await verifyAuth(req)) {
+  if (!await validateRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -107,4 +105,4 @@ export async function DELETE(req) {
   } catch (error) {
     return NextResponse.json({ error: 'Failed to delete URL' }, { status: 500 });
   }
-} 
+}

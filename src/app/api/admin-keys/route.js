@@ -1,95 +1,54 @@
+// src/app/api/admin-keys/route.js
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getToken } from 'next-auth/jwt';
+import { verifyAuth } from '@/app/lib/auth';
+import crypto from 'crypto';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Generate a simple API key
-function generateApiKey() {
-  const uuid = crypto.randomUUID();
-  const random = crypto.randomBytes(16).toString('hex');
-  return `${uuid}-${random}`;
-}
+export async function GET() {
+  const { data, error } = await supabase
+    .from('api_keys')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-export async function GET(req) {
-  try {
-    const token = await getToken({ req });
-
-    // Verify admin access for GET request
-    const { data: admin } = await supabase
-      .from('github_admins')
-      .select('role')
-      .eq('github_username', token?.username)
-      .single();
-
-    if (!token?.username || !admin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Fetching all the API keys (or specific ones based on your needs)
-    const { data: keys, error } = await supabase
-      .from('api_keys_v2')
-      .select('*');
-
-    if (error) throw error;
-
-    return NextResponse.json({ keys });
-  } catch (error) {
-    console.error('Error fetching API keys:', error);
-    return NextResponse.json({ error: 'Failed to fetch API keys' }, { status: 500 });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  return NextResponse.json(data || []);
 }
 
 export async function POST(req) {
+  if (!await verifyAuth(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const token = await getToken({ req });
-
-    // Verify admin access
-    const { data: admin } = await supabase
-      .from('github_admins')
-      .select('role')
-      .eq('github_username', token?.username)
-      .single();
-
-    if (!token?.username || !admin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { name, expiration } = await req.json();
-    if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
-    }
-
-    const key = generateApiKey();
-    const expiresAt = expiration ? new Date(expiration).toISOString() : null;
-
+    const key = crypto.randomBytes(32).toString('hex');
+    
     const { error } = await supabase
-      .from('api_keys_v2')
-      .insert([{ 
+      .from('api_keys')
+      .insert({
         key,
         name,
-        created_by: token.username,
-        expires_at: expiresAt,
-        metadata: {
-          created_from_ip: req.headers.get('x-forwarded-for') || req.ip,
-          user_agent: req.headers.get('user-agent')
-        }
-      }]);
+        expires_at: expiration ? new Date(Date.now() + parseDuration(expiration)).toISOString() : null,
+      });
 
     if (error) throw error;
-
-    return NextResponse.json({
-      key,
-      name,
-      expires_at: expiresAt,
-      message: expiresAt ? `API key expires on ${expiresAt}` : 'API key does not expire'
-    });
+    return NextResponse.json({ key });
   } catch (error) {
-    console.error('Error creating API key:', error);
     return NextResponse.json({ error: 'Failed to create API key' }, { status: 500 });
   }
 }
 
+function parseDuration(duration) {
+  const units = { d: 86400000, h: 3600000, m: 60000 };
+  const match = duration.match(/^(\d+)([dhm])$/);
+  if (!match) throw new Error('Invalid duration format');
+  return match[1] * units[match[2]];
+}
