@@ -10,29 +10,29 @@ const supabase = createClient(
 );
 
 export async function GET(req) {
-    // 1. Get token
+    // 1. Direct token check
     const authHeader = req.headers.get('authorization');
     const token = authHeader?.split(' ')[1];
     
-    // 2. Direct token check
-    const { data: authData, error: authError } = await supabase
+    const { data: authData } = await supabase
         .from('api_keys')
         .select('*')
         .eq('key', token)
         .single();
 
-    // 4. Return data if token valid
-    if (authData) {
-        const { data, error } = await supabase
-            .from('api_keys')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        return NextResponse.json(data || []);
+    // 2. Fallback to verifyAuth if direct check fails
+    if (!authData && !await verifyAuth(req)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // 3. Return data
+    const { data, error } = await supabase
+        .from('api_keys')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return NextResponse.json(data || []);
 }
 
 export async function POST(req) {
