@@ -31,6 +31,23 @@ export default function ApiKeyDialog({ isOpen, onClose }) {
     }
   };
 
+  const handleRevoke = async (keyId) => {
+    try {
+      const res = await fetch(`/api/admin-keys/${keyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!res.ok) throw new Error('Failed to revoke key');
+      await loadKeys(); // Refresh list after revoke
+    } catch (error) {
+      console.error('Error revoking key:', error);
+      setError('Failed to revoke API key');
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       loadKeys();
