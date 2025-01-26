@@ -2,13 +2,14 @@
   "name": "huskynz-urlshortner",
   "version": "2.1.0",
   "private": true,
-  "packageManager": "yarn@4.6.0",
-
- "scripts": {
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
     "dev": "op run --env-file=.env -- next dev -p 80",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "preinstall": "npx only-allow pnpm"
+  
   },
   "dependencies": {
     "@auth/core": "^0.37.3",
