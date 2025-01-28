@@ -22,6 +22,14 @@ This is a NextJS App that uses suppabase to create a URL shortner
 - [Tailwind](https://tailwindcss.com/)
 - [Cloudlfare](https://www.cloudflare.com/)
 - [Github](https://github.com/)
+- [Hetzner Cloud](https://www.hetzner.com/cloud/)
+- [Coolify](https://coolify.io/)
+
+## How to run?
+
+This is coming soon there are still a few things in the project that need to be done to make it easier to run. 
+
+eg. Move all db name calles to env vars, and publish a env examle file
 
 ## Screenshots (As of 23/1/2025 on the Dev branch)
 Home Page  - ![image](https://serv.husky.nz/URLSCREEN/Home.PNG)
@@ -53,5 +61,4 @@ Distributed under the MIT License. See [LICENSE](https://github.com/huskynz/url-
 
 ## Acknowledgements
 - [@not-my-username](https://github.com/not-my-username)
-- [Cloudflare](https://cloudflare.com)
 
