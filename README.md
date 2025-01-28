@@ -27,7 +27,9 @@ This is a NextJS App that uses suppabase to create a URL shortner
 
 ## How to run?
 
-This is coming soon there are still a few things in the project that need to be dont to make it easier to run.
+This is coming soon there are still a few things in the project that need to be done to make it easier to run. 
+
+eg. Move all db name calles to env vars, and publish a env examle file
 
 ## Screenshots (As of 23/1/2025 on the Dev branch)
 Home Page  - ![image](https://serv.husky.nz/URLSCREEN/Home.PNG)
