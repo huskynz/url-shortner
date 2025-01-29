@@ -15,7 +15,7 @@ export async function GET(req) {
     
     // Validate API key
     const { data: keyData, error: keyError } = await supabase
-      .from('api_keys')
+      .from(process.env.APIKEY_DB)
       .select('*')
       .eq('key', apiKey)
       .eq('is_active', true)
@@ -38,7 +38,7 @@ export async function GET(req) {
 
   try {
     const { data, error } = await supabase
-      .from('github_admins')
+      .from(process.env.ADMINS_DB)
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -59,7 +59,7 @@ export async function POST(request) {
     
     // Check if admin already exists
     const { data: existing } = await supabase
-      .from('github_admins')
+      .from(process.env.ADMINS_DB)
       .select('github_username')
       .eq('github_username', github_username)
       .single();
@@ -69,7 +69,7 @@ export async function POST(request) {
     }
 
     const { error } = await supabase
-      .from('github_admins')
+      .from(process.env.ADMINS_DB)
       .insert([{ github_username, role }]);
 
     if (error) throw error;
@@ -84,7 +84,7 @@ export async function DELETE(request) {
     const { github_username } = await request.json();
     
     const { error } = await supabase
-      .from('github_admins')
+      .from(process.env.ADMINS_DB)
       .delete()
       .eq('github_username', github_username);
 
@@ -100,7 +100,7 @@ export async function PUT(request) {
     const { github_username, role } = await request.json();
     
     const { error } = await supabase
-      .from('github_admins')
+      .from(process.env.ADMINS_DB)
       .update({ role })
       .eq('github_username', github_username);
 
