@@ -13,7 +13,7 @@ export async function DELETE(req, { params }) {
     const token = authHeader?.split(' ')[1];
     
     const { data: authData } = await supabase
-        .from('api_keys')
+        .from(process.env.APIKEY_DB)
         .select('*')
         .eq('key', token)
         .single();
@@ -25,7 +25,7 @@ export async function DELETE(req, { params }) {
 
     try {
         const { error } = await supabase
-            .from('api_keys')
+            .from(process.env.APIKEY_DB)
             .delete()
             .eq('id', params.id);
 

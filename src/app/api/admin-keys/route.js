@@ -15,7 +15,7 @@ export async function GET(req) {
     const token = authHeader?.split(' ')[1];
     
     const { data: authData } = await supabase
-        .from('api_keys')
+        .from(process.env.APIKEY_DB)
         .select('*')
         .eq('key', token)
         .single();
@@ -27,7 +27,7 @@ export async function GET(req) {
 
     // 3. Return data
     const { data, error } = await supabase
-        .from('api_keys')
+        .from(process.env.APIKEY_DB)
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -45,7 +45,7 @@ export async function POST(req) {
     const key = crypto.randomBytes(32).toString('hex');
     
     const { error } = await supabase
-      .from('api_keys')
+      .from(process.env.APIKEY_DB)
       .insert({
         key,
         name,
