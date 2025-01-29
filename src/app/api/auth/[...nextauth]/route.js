@@ -19,7 +19,7 @@ const handler = NextAuth({
     async signIn({ user, profile }) {
       try {
         const { data: admin } = await supabase
-          .from('github_admins')
+          .from(process.env.ADMINS_DB)
           .select('role')
           .eq('github_username', profile.login)
           .single();
