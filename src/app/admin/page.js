@@ -301,25 +301,27 @@ export default function AdminDashboard() {
   };
 
   const handleEdit = async (data) => {
-    try {
-      const res = await fetch('/api/admin-urls', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-      });
+    handleRestrictedAction(async () => {
+      try {
+        const res = await fetch('/api/admin-urls', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
 
-      if (!res.ok) {
-        throw new Error('Failed to update URL');
+        if (!res.ok) {
+          throw new Error('Failed to update URL');
+        }
+
+        // Refresh the URLs list
+        loadUrls();
+      } catch (error) {
+        console.error('Failed to update URL:', error);
+        throw error;
       }
-
-      // Refresh the URLs list
-      loadUrls();
-    } catch (error) {
-      console.error('Failed to update URL:', error);
-      throw error;
-    }
+    });
   };
 
   if (status === 'loading') {
@@ -357,7 +359,7 @@ export default function AdminDashboard() {
 
   const showManageAdmins = isOwner;
   const showUrlManagement = isAdmin || isOwner;
-  const logourl = "https://serv.husky.nz/logo/default180.png";
+
 
   return (
     <>
@@ -365,7 +367,7 @@ export default function AdminDashboard() {
         <div className={`${isMobileView ? 'flex flex-col items-center' : 'flex justify-between items-center'} mb-6`}>
           <div className="flex items-center gap-4">
             <img 
-              src={logourl} 
+              src={process.env.NEXT_PUBLIC_LOGO_URL} 
               width={50} 
               height={50} 
               alt="Logo"
@@ -494,10 +496,11 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex flex-col gap-2">
                   <button
-                      onClick={() => {
-                        setUrlToEdit(url);
-                        setShowEditDialog(true);
-                      }}
+                    
+                    onClick={() => handleRestrictedAction(() => {
+                      setUrlToEdit(url);
+                      setShowEditDialog(true);
+                    })}
                       className="px-3 py-1.5 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
                     >
                       Edit
@@ -556,10 +559,10 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => {
+                       onClick={() => handleRestrictedAction(() => {
                         setUrlToEdit(url);
                         setShowEditDialog(true);
-                      }}
+                      })}
                       className="px-3 py-1.5 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
                     >
                       Edit
@@ -671,4 +674,4 @@ export default function AdminDashboard() {
    
     </>
   );
-} 
+}
