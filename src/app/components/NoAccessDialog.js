@@ -1,6 +1,5 @@
 export default function NoAccessDialog({ isOpen, onClose }) {
   if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-[#0a0a0a] border border-gray-800 rounded-lg max-w-md w-full">
@@ -12,7 +11,11 @@ export default function NoAccessDialog({ isOpen, onClose }) {
         
         <div className="p-6">
           <p className="text-gray-300">
-            You don't have permission to perform this action. Please contact Peter Gallwas on discord or email for access.
+            You don't have permission to perform this action. Please contact your admin for more information.
+
+          </p>
+          <p className="text-gray-300 pt-4">
+          Your admin is {process.env.NEXT_PUBLIC_ADMIN_NAME} and {process.env.NEXT_PUBLIC_ADMIN_PRONOUN} email is {process.env.NEXT_PUBLIC_ADMIN_EMAIL}.
           </p>
         </div>
 
