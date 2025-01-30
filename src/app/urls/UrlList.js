@@ -44,7 +44,7 @@ export default function UrlList({ initialUrls }) {
                 {/* Left section: Logo and text */}
                 <div className="flex items-center gap-4 pb-5">
                     <img 
-                        src="https://serv.husky.nz/logo/default180.png" 
+                        src={process.env.NEXT_PUBLIC_LOGO_URL} 
                         width={50} 
                         height={50} 
                         alt="Logo"

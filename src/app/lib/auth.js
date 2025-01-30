@@ -13,7 +13,7 @@ export async function verifyAuth(req) {
     try {
       // Fetch all active API keys with valid expiration
       const { data: keys, error } = await supabase
-        .from('api_keys')
+        .from(process.env.APIKEY_DB)
         .select('*')
         .eq('is_active', true)
         .gt('expires_at', new Date().toISOString()); // Check for keys that are still valid
@@ -33,7 +33,7 @@ export async function verifyAuth(req) {
       if (matchingKey) {
         // If a match is found, update the usage metadata
         await supabase
-          .from('api_keys')
+          .from(process.env.APIKEY_DB)
           .update({
             use_count: matchingKey.use_count + 1,
             last_used: new Date().toISOString(),
