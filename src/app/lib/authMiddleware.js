@@ -13,7 +13,7 @@ export async function validateRequest(req) {
     const apiKey = authHeader.substring(7);
     
     const { data: keyData, error: keyError } = await supabase
-      .from('api_keys')
+      .from(process.env.APIKEY_DB)
       .select('*')
       .eq('key', apiKey)
       .eq('is_active', true)
