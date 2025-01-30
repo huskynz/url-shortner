@@ -17,7 +17,7 @@
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/supabase-js": "^2.45.4",
     "bcryptjs": "^2.4.3",
-    "next": "14.2.15",
+    "next": "14.2.21",
     "next-auth": "^4.24.10",
     "react": "^18",
     "react-dom": "^18"
