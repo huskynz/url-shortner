@@ -4,12 +4,11 @@
   "private": true,
   "packageManager": "pnpm@10.0.0",
   "scripts": {
-    "dev": "op run --env-file=.env -- next dev -p 80",
+    "dev": "op run --env-file=.env -- next dev --turbopack -p 80",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "preinstall": "npx only-allow pnpm"
-  
   },
   "dependencies": {
     "@auth/core": "^0.37.3",
@@ -17,10 +16,10 @@
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/supabase-js": "^2.45.4",
     "bcryptjs": "^2.4.3",
-    "next": "14.2.21",
+    "next": "15.1.6",
     "next-auth": "^4.24.10",
-    "react": "^18",
-    "react-dom": "^18"
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
   },
   "devDependencies": {
     "postcss": "^8",

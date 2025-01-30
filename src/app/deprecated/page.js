@@ -1,13 +1,14 @@
 // src/app/deprecated/page.js
 import { fetchDisplayUrls } from '../utils';
 
-export default async function DeprecatedPage({ searchParams }) {
+export default async function DeprecatedPage(props) {
+  const searchParams = await props.searchParams;
   const deprecatedPath = searchParams?.dpl || '';
-  
+
   // Fetch all URLs and filter for deprecated ones
   const urls = await fetchDisplayUrls();
   const deprecatedUrls = urls.filter(url => url.deprecated);
-  
+
   // Check if provided path exists and is deprecated
   const deprecatedUrl = deprecatedUrls.find(url => url.short_path === deprecatedPath);
   const displayPath = deprecatedUrl ? deprecatedUrl.short_path : '';

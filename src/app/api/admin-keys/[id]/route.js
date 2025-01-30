@@ -7,11 +7,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export async function DELETE(req, { params }) {
+export async function DELETE(req, props) {
+    const params = await props.params;
     // 1. Direct token check
     const authHeader = req.headers.get('authorization');
     const token = authHeader?.split(' ')[1];
-    
+
     const { data: authData } = await supabase
         .from(process.env.APIKEY_DB)
         .select('*')
@@ -19,7 +20,7 @@ export async function DELETE(req, { params }) {
         .single();
 
     // 2. Fallback to verifyAuth if direct check fails
-    if (!authData && !await verifyAuth(req)) {
+    if (!authData && !(await verifyAuth(req))) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
