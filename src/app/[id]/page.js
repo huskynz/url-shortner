@@ -2,10 +2,11 @@
 import { fetchRedirectUrl, logUserData } from '../utils';
 import { redirect } from 'next/navigation';
 
-export default async function Page({ params }) {
+export default async function Page(props) {
+  const params = await props.params;
   const { id } = params;
   await logUserData(id);
-  
+
   const urlData = await fetchRedirectUrl(id);
 
   // Handle special routes
