@@ -83,36 +83,42 @@ return (
       </div>
     </div>
 
-    {/* Centered content */}
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex flex-col items-center">
-        <p className="text-center mb-4  font-bold text-2xl">
-          You can find us on the following platforms
-        </p>
-        
-        <div className="w-full flex flex-col items-center gap-4">
-          {links.map((link, index) => (
-            <a 
-              key={index}
-              className={`${link.buttonClass} flex items-center justify-center w-full max-w-md p-4 rounded-lg transition-all hover:scale-105`}
-              href={link.url} 
-              target="_blank" 
-              rel="noreferrer"
-            >
-              <img 
-                className="w-12 h-12 mr-3"
-                src={`${link.icon}`} 
-                alt={`${link.name} Logo`} 
-                width={48}
-                height={48}
-              />
-              <span className="text-white text-lg">{link.name}</span>
-            </a>
-          ))}
+     {/* Platforms Section */}
+     <div className="flex-1 max-w-4xl mx-auto px-4 py-8">
+        <div className="flex flex-col items-center">
+          <p className="text-center mb-4 font-bold text-2xl">
+            You can find us on the following platforms
+          </p>
+          
+          <div className="w-full flex flex-col items-center gap-4">
+            {links.map((link, index) => (
+              <a 
+                key={index}
+                className={`${link.buttonClass} flex items-center justify-center w-full max-w-md p-4 rounded-lg transition-all hover:scale-105`}
+                href={link.url} 
+                target="_blank" 
+                rel="noreferrer"
+              >
+                <img 
+                  className="w-12 h-12 mr-3"
+                  src={`${link.icon}`} 
+                  alt={`${link.name} Logo`} 
+                  width={48}
+                  height={48}
+                />
+                <span className="text-white text-lg">{link.name}</span>
+              </a>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="w-full text-center text-gray-500 p-4">
+        <p>© 2025 HuskyNZ. Licensed under the MIT open source lisense <a className='text-white underline' href='https://raw.githubusercontent.com/huskynz/url-shortner/refs/heads/master/LICENSE'>here</a> | You can view this sites source code <a href='/ghm' className='text-white underline'>here</a></p>
+        <p>By using this site you agree to HuskyNZ's <a href='https://legal.husky.nz/toc' className='text-white underline'>Terms of use</a> and <a href='https://legal.husky.nz/Privacy-Policy' className='text-white underline'>Privacy policy</a></p>
+      </footer>
     </div>
-  </div>
 );
 };
 export default Page;
