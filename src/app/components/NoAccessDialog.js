@@ -14,9 +14,6 @@ export default function NoAccessDialog({ isOpen, onClose }) {
             You don't have permission to perform this action. Please contact your admin for more information.
 
           </p>
-          <p className="text-gray-300 pt-4">
-          Your admin is {process.env.NEXT_PUBLIC_ADMIN_NAME} and {process.env.NEXT_PUBLIC_ADMIN_PRONOUN} email is {process.env.NEXT_PUBLIC_ADMIN_EMAIL}.
-          </p>
         </div>
 
         <div className="border-t border-gray-800 p-4 flex justify-end">

@@ -88,7 +88,7 @@ const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
 // Log user data in Supabase
 export async function logUserData(location) {
-  const header = headers();
+  const header = await headers();
 
   const ip = header.get('x-forwarded-for') || 'Unknown IP';
   const userAgent = header.get("user-agent") || "Unknown";
