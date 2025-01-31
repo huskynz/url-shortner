@@ -23,6 +23,12 @@ importers:
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
+      cross-spawn:
+        specifier: '>=7.0.6'
+        version: 7.0.6
+      nanoid:
+        specifier: '>=5.0.9'
+        version: 5.0.9
       next:
         specifier: 15.1.6
         version: 15.1.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -36,9 +42,6 @@ importers:
         specifier: 19.0.0
         version: 19.0.0(react@19.0.0)
     devDependencies:
-      cross-spawn:
-        specifier: '>=7.0.6'
-        version: 7.0.6
       postcss:
         specifier: ^8
         version: 8.4.47
@@ -561,6 +564,11 @@ packages:
   nanoid@3.3.7:
     resolution: {integrity: sha512-eSRppjcPIatRIMC1U6UngP8XFcz8MQWGQdt1MTBQ7NaAmvXDfvNxbvWV3x2y6CdEUciCSsDHDQZbhYaB8QEo2g==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+
+  nanoid@5.0.9:
+    resolution: {integrity: sha512-Aooyr6MXU6HpvvWXKoVoXwKMs/KyVakWwg7xQfv5/S/RIgJMy0Ifa45H9qqYy7pTCszrHzP21Uk4PZq2HpEM8Q==}
+    engines: {node: ^18 || >=20}
     hasBin: true
 
   next-auth@4.24.10:
@@ -1356,6 +1364,8 @@ snapshots:
       thenify-all: 1.6.0
 
   nanoid@3.3.7: {}
+
+  nanoid@5.0.9: {}
 
   next-auth@4.24.10(@auth/core@0.37.3)(next@15.1.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
     dependencies:
