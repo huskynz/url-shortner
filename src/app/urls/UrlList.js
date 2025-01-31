@@ -133,8 +133,8 @@ export default function UrlList({ initialUrls }) {
 
             {/* Footer */}
             <footer className="mt-auto text-center text-gray-500">
-                <p >© 2025 HuskyNZ. All rights reserved. | You can view this site source code <a href='/ghm' className='text-white  underline'>here</a></p>
-                <p>By using this site you agree to HuskyNZ's <a href='https://legal.husky.nz/toc' className='text-white underline'>Terms of use</a> and <a href='https://legal.husky.nz/Privacy-Policy' className='text-white underline'>Privacy policy</a> </p>
+                <p >© 2025 HuskyNZ. Licensed under the MIT open source lisense <a className='text-white  underline' href='https://raw.githubusercontent.com/huskynz/url-shortner/refs/heads/master/LICENSE'>here</a> | You can view this sites source code <a href='/ghm' className='text-white  underline'>here</a></p>
+                <p>By using this site you agree to HuskyNZ's <a href='https://legal.husky.nz/toc' className='text-white underline'>Terms of use</a> and <a href='https://legal.husky.nz/Privacy-Policy' className='text-white underline'>Privacy policy</a></p>
             </footer>
         </div>
     );
