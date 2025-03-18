@@ -23,7 +23,7 @@ This is a NextJS App that uses suppabase to create a URL shortner
 - [Cloudlfare](https://www.cloudflare.com/)
 - [Github](https://github.com/)
 - [Hetzner Cloud](https://www.hetzner.com/cloud/)
-- [Dokploy]([https://coolify.io/](https://dokploy.com/))
+- [Dokploy](https://dokploy.com/)
 
 ## How to run?
 
