@@ -2,7 +2,7 @@
   "name": "hunz-urlshort",
   "version": "2.1.0",
   "private": true,
-  "packageManager": "pnpm@10.0.0",
+  "packageManager": "pnpm@10.6.5",
   "scripts": {
     "dev": "op run --env-file=.env -- next dev --turbopack -p 80",
     "build": "next build",
