@@ -367,7 +367,7 @@ export default function AdminDashboard() {
         <div className={`${isMobileView ? 'flex flex-col items-center' : 'flex justify-between items-center'} mb-6`}>
           <div className="flex items-center gap-4">
             <img 
-              src={process.env.NEXT_PUBLIC_LOGO_URL} 
+              src="https://serv.hnz.li/logo/default.png" 
               width={50} 
               height={50} 
               alt="Logo"
