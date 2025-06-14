@@ -13,8 +13,41 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function fetchRedirectUrl(location) {
   // Special routes - don't redirect
-  if (location === 'invaildlink' || location === 'deprecated' || location === 'urls') {
+  if (location === 'invaildlink' || location === 'deprecated' || location === 'urls' || location === 'access-denied') {
     return null;
+  }
+
+  // Get client IP for geo-blocking
+  const header = await headers();
+  const ip = header.get('x-forwarded-for') || 'Unknown IP';
+  let userCountry = null;
+
+  // Fetch country based on IP using our internal API
+  if (ip && ip !== 'Unknown IP') {
+    try {
+      const ipInfoRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/ip-country?ip=${ip}`);
+      if (ipInfoRes.ok) {
+        const ipInfoData = await ipInfoRes.json();
+        userCountry = ipInfoData.country;
+      } else {
+        console.warn(`Failed to fetch country for IP ${ip}:`, await ipInfoRes.text());
+      }
+    } catch (error) {
+      console.error(`Error fetching country for IP ${ip}:`, error);
+    }
+  }
+
+  // Check for blocked countries
+  const blockedCountriesEnv = process.env.BLOCKED_COUNTRIES;
+  const blockedCountries = blockedCountriesEnv ? blockedCountriesEnv.split(',').map(c => c.trim().toUpperCase()) : [];
+
+  if (userCountry && blockedCountries.includes(userCountry.toUpperCase())) {
+    console.warn(`Access denied for IP ${ip} from blocked country: ${userCountry}`);
+    return {
+      redirect_url: "/access-denied",
+      deprecated: false, // Treat as not deprecated but denied
+      is_blocked: true,
+    };
   }
 
   const { data, error } = await supabase
@@ -86,6 +119,30 @@ export async function fetchDisplayUrls() {
 // Discord webhook URL (replace with your actual webhook URL)
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
+// Helper to parse browser from user agent
+function getBrowser(userAgent) {
+  if (!userAgent) return 'Unknown';
+  if (userAgent.includes('Firefox')) return 'Firefox';
+  if (userAgent.includes('SamsungBrowser')) return 'Samsung Browser';
+  if (userAgent.includes('Opera') || userAgent.includes('OPR')) return 'Opera';
+  if (userAgent.includes('Edge')) return 'Edge';
+  if (userAgent.includes('Chrome')) return 'Chrome';
+  if (userAgent.includes('Safari')) return 'Safari';
+  if (userAgent.includes('MSIE') || userAgent.includes('Trident')) return 'IE';
+  return 'Unknown';
+}
+
+// Helper to parse OS from user agent
+function getOS(userAgent) {
+  if (!userAgent) return 'Unknown';
+  if (userAgent.includes('Windows')) return 'Windows';
+  if (userAgent.includes('Android')) return 'Android';
+  if (userAgent.includes('iPhone') || userAgent.includes('iPad')) return 'iOS';
+  if (userAgent.includes('Mac')) return 'macOS';
+  if (userAgent.includes('Linux')) return 'Linux';
+  return 'Unknown';
+}
+
 // Log user data in Supabase
 export async function logUserData(location) {
   const header = await headers();
@@ -96,6 +153,22 @@ export async function logUserData(location) {
   const versionNumber = process.env.NEXT_PUBLIC_Version_Number || 'unknown';
 
   let userId;
+  let country = null;
+  let city = null;
+
+  // Fetch country and city based on IP
+  try {
+    const ipInfoRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/ip-country?ip=${ip}`);
+    if (ipInfoRes.ok) {
+      const ipInfoData = await ipInfoRes.json();
+      country = ipInfoData.country || null;
+      city = ipInfoData.city || null;
+    } else {
+      console.warn(`Failed to fetch IP country for ${ip}:`, await ipInfoRes.text());
+    }
+  } catch (ipError) {
+    console.error(`Error fetching IP country for ${ip}:`, ipError);
+  }
 
   // Check if this IP already has a user_id assigned
   const { data: existingUsers, error: fetchError } = await supabase
@@ -140,6 +213,8 @@ export async function logUserData(location) {
       environment: environment,
       version_number: versionNumber,
       user_id: userId, // Link the visit to the UUID
+      country: country,
+      city: city,
     }
   ]);
 
