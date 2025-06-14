@@ -201,7 +201,7 @@ export default function UrlList({ initialUrls }) {
                                 className="rounded"
                             />
                             <div>
-                                <h1 className="text-xl font-bold">URL Directory</h1>
+                                <h1 className="text-xl font-bold">HuskyNZ URL Shortner</h1>
                                 <p className="text-sm text-gray-400">
                                     Version {process.env.NEXT_PUBLIC_Version_Number} | 
                                     <span className={`ml-1 ${process.env.NEXT_PUBLIC_ENV === "Development" ? "text-red-500" : "text-green-400"}`}>
