@@ -65,13 +65,13 @@ export async function GET(req) {
         // Get all visits (all columns needed for full analysis)
         supabase
           .from('visits')
-          .select('short_path, user_agent, ip_address, environment, version_number, visited_at, user_id')
+          .select('short_path, user_agent, ip_address, environment, version_number, visited_at, user_id, browser, os')
           .gte('visited_at', timeRange === 0 ? '1970-01-01' : cutoffDate.toISOString()),
         
         // Get recent visits (last 10)
         supabase
           .from('visits')
-          .select('short_path, user_agent, ip_address, environment, version_number, visited_at, user_id')
+          .select('short_path, user_agent, ip_address, environment, version_number, visited_at, user_id, browser, os')
           .order('id', { ascending: false })
           .limit(10)
       ]);
