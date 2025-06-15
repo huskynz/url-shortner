@@ -1,5 +1,5 @@
 'use client';
-import { useSession, signIn, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { 
   MobileIcon, 
@@ -34,16 +34,15 @@ import {
   MagnifyingGlassIcon
 } from '@radix-ui/react-icons';
 import { useDeviceDetect } from '../hooks/useDeviceDetect';
+import { useRole } from '../hooks/useRole';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AddUrlDialog from '../components/AddUrlDialog';
 import AddAdminDialog from '../components/AddAdminDialog';
-import { useRole } from '../hooks/useRole';
 import NoAccessDialog from '../components/NoAccessDialog';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EditUrlDialog from '../components/EditUrlDialog';
 import ApiKeyDialog from '../components/ApiKeyDialog';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
-
 
 const FilterSection = ({ filter, setFilter, search, setSearch, isAdmin, isOwner }) => {
   return (
@@ -73,44 +72,57 @@ const FilterSection = ({ filter, setFilter, search, setSearch, isAdmin, isOwner 
 };
 
 export default function AdminDashboard() {
+  // 1. Context and external hooks
   const { data: session, status } = useSession();
   const { role, isAdmin, isOwner } = useRole();
+  const isMobileDevice = useDeviceDetect();
+
+  // 2. All useState hooks
+  const [activeTab, setActiveTab] = useState('overview');
   const [urls, setUrls] = useState([]);
+  const [admins, setAdmins] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [apiKeys, setApiKeys] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState(null);
   const [error, setError] = useState(null);
-  const [newUrl, setNewUrl] = useState({ short_path: '', redirect_url: '' });
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [urlToDelete, setUrlToDelete] = useState(null);
+  const [showNoAccess, setShowNoAccess] = useState(false);
+  const [isAddUrlFormOpen, setIsAddUrlFormOpen] = useState(false);
+  const [showAddAdmin, setShowAddAdmin] = useState(false);
+  const [showEditUrl, setShowEditUrl] = useState(false);
+  const [editingUrl, setEditingUrl] = useState(null);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const isMobileDevice = useDeviceDetect();
+  const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
+  const [favorites, setFavorites] = useState([]);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [newUrlData, setNewUrlData] = useState({
+    short_path: '',
+    redirect_url: '',
+    private: false,
+    password: ''
+  });
   const [isMobileView, setIsMobileView] = useState(true);
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     title: '',
     message: '',
     confirmText: '',
-    variant: '',
-    onConfirm: () => {},
+    variant: 'default',
+    onConfirm: null
   });
-  const [isAddUrlOpen, setIsAddUrlOpen] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
   const [newAdminRole, setNewAdminRole] = useState('viewer');
   const [adminError, setAdminError] = useState('');
-  const [admins, setAdmins] = useState([]);
-  const [showNoAccess, setShowNoAccess] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const [urlToDelete, setUrlToDelete] = useState(null);
   const [loadingStates, setLoadingStates] = useState({
     deprecating: new Set(),
     deleting: null
   });
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [urlToEdit, setUrlToEdit] = useState(null);
-  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [analytics, setAnalytics] = useState(null);
-  const [analyticsLoading, setAnalyticsLoading] = useState(true);
-  const [analyticsError, setAnalyticsError] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [apiKeys, setApiKeys] = useState([]);
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(true);
   const [apiKeyError, setApiKeyError] = useState(null);
   const [showNewKey, setShowNewKey] = useState(null);
@@ -121,15 +133,86 @@ export default function AdminDashboard() {
   const [createApiKeyError, setCreateApiKeyError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [viewMode, setViewMode] = useState('grid');
-  const [favorites, setFavorites] = useState(new Set());
   const [showFilters, setShowFilters] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: 'short_path', direction: 'asc' });
   const [copiedUrl, setCopiedUrl] = useState(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [copiedPasswordToast, setCopiedPasswordToast] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
+  // 3. All useEffect hooks
+  // Load data on mount
+  useEffect(() => {
+    if (isAdmin) {
+      loadUrls();
+      loadAnalytics();
+      loadApiKeys();
+      loadAdmins();
+    }
+  }, [isAdmin]);
+
+  // Load favorites from localStorage
+  useEffect(() => {
+    const savedFavorites = localStorage.getItem('favoriteUrls');
+    if (savedFavorites) {
+      setFavorites(JSON.parse(savedFavorites));
+    }
+  }, []);
+
+  // Save favorites to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('favoriteUrls', JSON.stringify(favorites));
+  }, [favorites]);
+
+  // Update mobile view when device changes
   useEffect(() => {
     setIsMobileView(isMobileDevice);
   }, [isMobileDevice]);
+
+  // Helper function to generate a secure password
+  const generateSecurePassword = () => {
+    const length = 12;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+";
+    let retVal = "";
+    for (let i = 0, n = charset.length; i < length; ++i) {
+      retVal += charset.charAt(Math.floor(Math.random() * n));
+    }
+    return retVal;
+  };
+
+  // Handle password field visibility for inline add URL form
+  useEffect(() => {
+    const passwordField = document.getElementById('add-url-password-field');
+    const isPrivateCheckbox = document.getElementById('add-url-private');
+    const passwordInput = document.getElementById('add-url-password');
+
+    if (passwordField && isPrivateCheckbox && passwordInput) {
+      const togglePasswordField = () => {
+        const isChecked = isPrivateCheckbox.checked;
+        passwordField.classList.toggle('hidden', !isChecked);
+        passwordInput.required = isChecked;
+        passwordInput.minLength = isChecked ? 1 : 0;
+        
+        // Clear password when unchecking private
+        if (!isChecked) {
+          passwordInput.value = '';
+          setNewUrlData(prev => ({ ...prev, password: '' }));
+        }
+      };
+
+      // Initial setup
+      togglePasswordField();
+
+      // Add event listener
+      isPrivateCheckbox.addEventListener('change', togglePasswordField);
+      return () => isPrivateCheckbox.removeEventListener('change', togglePasswordField);
+    }
+  }, [isAddUrlFormOpen]);
+
+  // 4. Helper functions
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  };
 
   const handleCopyUrl = async (shortPath) => {
     try {
@@ -167,8 +250,7 @@ export default function AdminDashboard() {
 
   const clearAllFavorites = () => {
     setFavorites(new Set());
-    setSuccessMessage('All favorites cleared.');
-    setTimeout(() => setSuccessMessage(''), 3000);
+    showToast('All favorites cleared.', 'success');
   };
 
   const loadUrls = async () => {
@@ -230,11 +312,10 @@ export default function AdminDashboard() {
       setNewApiKeyName('');
       setShowCreateApiKeyForm(false);
       setCreateApiKeyError('');
-      setSuccessMessage('API Key generated successfully.');
-      setTimeout(() => setSuccessMessage(''), 3000);
+      showToast('API Key generated successfully.', 'success');
     } catch (error) {
       setCreateApiKeyError(error.message || 'Failed to create API key');
-      setApiKeyError(error.message || 'Failed to create API key');
+      showToast(error.message || 'Failed to create API key', 'error');
     }
   };
 
@@ -246,10 +327,9 @@ export default function AdminDashboard() {
       
       if (!res.ok) throw new Error('Failed to delete API key');
       loadApiKeys();
-      setSuccessMessage(`API Key deleted successfully.`);
-      setTimeout(() => setSuccessMessage(''), 3000);
+      showToast(`API Key deleted successfully.`, 'success');
     } catch (error) {
-      setApiKeyError('Failed to delete API key');
+      showToast('Failed to delete API key', 'error');
     }
   };
 
@@ -259,19 +339,9 @@ export default function AdminDashboard() {
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2000);
     } catch (error) {
-      // console.error('Error copying key:', error);
-      setError('Failed to copy key to clipboard.');
+      showToast('Failed to copy key to clipboard.', 'error');
     }
   };
-
-  useEffect(() => {
-    if (session) {
-      loadUrls();
-      loadAnalytics();
-      loadAdmins();
-      loadApiKeys();
-    }
-  }, [session]);
 
   const loadAdmins = async () => {
     try {
@@ -285,30 +355,45 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleAddUrl = async (urlData) => {
-    handleRestrictedAction(async () => {
-      try {
+  const handleInlineAddUrlSubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+      const formData = new FormData(e.target);
+      const privateChecked = formData.get('private') === 'on';
+      
+      const urlData = {
+        short_path: formData.get('short_path'),
+        redirect_url: formData.get('redirect_url'),
+        private: privateChecked,
+      };
+
+      // Conditionally add password only if private is checked AND a password is provided
+      if (privateChecked && formData.get('password')) {
+        urlData.password = formData.get('password');
+      }
+
         const res = await fetch('/api/admin-urls', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(urlData),
+        body: JSON.stringify(urlData)
         });
+
+      const data = await res.json();
         
         if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.error || 'Failed to add URL');
+        throw new Error(data.error || 'Failed to add URL');
         }
+
         loadUrls();
-        setIsAddUrlOpen(false);
+      setIsAddUrlFormOpen(false);
         setError('');
-        setSuccessMessage(`URL '/${urlData.short_path}' added successfully.`);
-        setTimeout(() => setSuccessMessage(''), 3000);
-        setNewUrl({ short_path: '', redirect_url: '' });
+      showToast(`URL '/${urlData.short_path}' added successfully.`, 'success');
+      setNewUrlData({ short_path: '', redirect_url: '', private: false, password: '' });
       } catch (error) {
-        console.log("Error in handleAddUrl:", error);
         setError(error.message || 'Failed to add URL');
+      showToast(error.message || 'Failed to add URL', 'error');
       }
-    });
   };
 
   const handleRestrictedAction = async (action) => {
@@ -327,7 +412,6 @@ export default function AdminDashboard() {
   const handleToggleDeprecated = async (url) => {
     handleRestrictedAction(async () => {
       try {
-        // Add to loading state
         setLoadingStates(prev => ({
           ...prev,
           deprecating: new Set([...prev.deprecating, url.short_path])
@@ -350,15 +434,12 @@ export default function AdminDashboard() {
           throw new Error(data.error || 'Failed to update URL');
         }
 
-        // Refresh the URLs list after successful update
-        const updatedRes = await fetch('/api/admin-urls');
-        const updatedUrls = await updatedRes.json();
-        setUrls(updatedUrls);
+        loadUrls();
+        showToast(`URL '/${url.short_path}' status updated to ${url.deprecated ? 'active' : 'deprecated'}.`, 'success');
 
       } catch (error) {
-        setError('Failed to update URL status');
+        showToast('Failed to update URL status', 'error');
       } finally {
-        // Remove from loading state
         setLoadingStates(prev => ({
           ...prev,
           deprecating: new Set(
@@ -383,7 +464,6 @@ export default function AdminDashboard() {
   const handleCancelDelete = () => {
     setShowConfirmDelete(false);
     setUrlToDelete(null);
-    // Reset the loading state for the button
     setLoadingStates(prev => ({
       ...prev,
       deleting: null
@@ -405,25 +485,14 @@ export default function AdminDashboard() {
           throw new Error('Failed to delete URL');
         }
 
-        // Refresh the URLs list
         loadUrls();
         setShowConfirmDelete(false);
         setUrlToDelete(null);
-        setSuccessMessage(`URL '/${urlToDelete.short_path}' deleted successfully.`);
-        setTimeout(() => setSuccessMessage(''), 3000);
+        showToast(`URL '/${urlToDelete.short_path}' deleted successfully.`, 'success');
       } catch (error) {
-        setError('Failed to delete URL');
+        showToast('Failed to delete URL', 'error');
       }
     }
-  };
-
-  const handleInlineAddUrlSubmit = (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    handleAddUrl({
-      short_path: formData.get('short_path'),
-      redirect_url: formData.get('redirect_url')
-    });
   };
 
   const handleAddAdmin = async (github_username) => {
@@ -438,11 +507,10 @@ export default function AdminDashboard() {
       loadAdmins();
       setAdminError('');
       setNewAdminRole('viewer');
-      setSuccessMessage(`Admin '${github_username}' added successfully.`);
-      setTimeout(() => setSuccessMessage(''), 3000);
+      showToast(`Admin '${github_username}' added successfully.`, 'success');
     } catch (err) {
       console.log("Error in handleAddAdmin:", err);
-      setAdminError(err.message || 'Failed to add admin');
+      showToast(err.message || 'Failed to add admin', 'error');
     }
   };
 
@@ -463,10 +531,9 @@ export default function AdminDashboard() {
           const data = await res.json();
           if (data.error) throw new Error(data.error);
           loadAdmins();
-          setSuccessMessage(`Admin '${github_username}' removed successfully.`);
-          setTimeout(() => setSuccessMessage(''), 3000);
+          showToast(`Admin '${github_username}' removed successfully.`, 'success');
         } catch (error) {
-          setAdminError(error.message || 'Failed to remove admin');
+          showToast(error.message || 'Failed to remove admin', 'error');
         } finally {
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         }
@@ -484,10 +551,9 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       loadAdmins();
-      setSuccessMessage(`Admin '${github_username}' role updated to '${role}' successfully.`);
-      setTimeout(() => setSuccessMessage(''), 3000);
+      showToast(`Admin '${github_username}' role updated to '${role}' successfully.`, 'success');
     } catch (error) {
-      setError('Failed to update role');
+      showToast('Failed to update role', 'error');
     }
   };
 
@@ -511,16 +577,16 @@ export default function AdminDashboard() {
         });
 
         if (!res.ok) {
-          throw new Error('Failed to update URL');
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to update URL');
         }
 
-        // Refresh the URLs list
         loadUrls();
-        setSuccessMessage(`URL '/${data.short_path}' updated successfully.`);
-        setTimeout(() => setSuccessMessage(''), 3000);
+        setShowEditUrl(false); // Close the edit dialog
+        setEditingUrl(null); // Clear editing URL
+        showToast(`URL '/${data.short_path}' updated successfully.`, 'success');
       } catch (error) {
-        setError('Failed to update URL');
-        throw error;
+        showToast(error.message || 'Failed to update URL', 'error');
       }
     });
   };
@@ -1021,458 +1087,356 @@ export default function AdminDashboard() {
   );
 
   const renderUrls = () => (
-    <>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">URL Management</h2>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setViewMode(current => current === 'grid' ? 'list' : 'grid')}
-            className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
-            title="Toggle view mode (Ctrl/Cmd + V)"
-          >
-            {viewMode === 'grid' ? (
-              <ListBulletIcon className="w-5 h-5 text-gray-400" />
-            ) : (
-              <GridIcon className="w-5 h-5 text-gray-400" />
-            )}
-          </button>
-          {showUrlManagement && (
+    <div className="space-y-6">
+      {/* URL Management Header with Search and Actions */}
+      <div className="bg-[#1a1a1a] border border-gray-800 rounded-xl p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <h2 className="text-xl font-semibold text-gray-200">URL Management</h2>
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => handleRestrictedAction(() => setIsAddUrlOpen(true))}
-              className="px-4 py-2 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors"
+              onClick={() => setViewMode(current => current === 'grid' ? 'list' : 'grid')}
+              className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
+              title="Toggle view mode (Ctrl/Cmd + V)"
             >
-              Add URL
+              {viewMode === 'grid' ? (
+                <ListBulletIcon className="w-5 h-5 text-gray-400" />
+              ) : (
+                <GridIcon className="w-5 h-5 text-gray-400" />
+              )}
             </button>
-          )}
-        </div>
-      </div>
-
-      {isAddUrlOpen && showUrlManagement && (
-        <div className="mb-6 bg-[#1a1a1a] border border-gray-800 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-200">Add New URL</h3>
-            <button
-              onClick={() => {
-                setIsAddUrlOpen(false);
-                setError('');
-                setNewUrl({ short_path: '', redirect_url: '' });
-              }}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <Cross2Icon className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
-          <form onSubmit={handleInlineAddUrlSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">
-                Short Path
-              </label>
-              <input
-                type="text"
-                id="short_path"
-                name="short_path"
-                className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                placeholder="Enter short path"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">
-                Redirect URL
-              </label>
-              <input
-                type="url"
-                id="redirect_url"
-                name="redirect_url"
-                className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                placeholder="Enter redirect URL"
-                required
-              />
-            </div>
-            {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <p className="text-sm text-red-500">{error}</p>
-              </div>
-            )}
-            <div className="flex justify-end gap-3">
+            {showUrlManagement && (
               <button
-                type="button"
-                onClick={() => {
-                  setIsAddUrlOpen(false);
-                  setError('');
-                  setNewUrl({ short_path: '', redirect_url: '' });
-                }}
-                className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
+                onClick={() => handleRestrictedAction(() => setIsAddUrlFormOpen(true))}
                 className="px-4 py-2 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center gap-2"
+                title="Add New URL"
               >
                 <PlusIcon className="w-4 h-4" />
                 Add URL
               </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="flex-1">
-          <div className="relative">
-            <input
-              type="text"
-              id="url-search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
-              placeholder="Search URLs... (Ctrl/Cmd + K)"
-              className="w-full p-2 pl-10 rounded-lg bg-[#1a1a1a] border border-gray-800 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-gray-700"
-            />
-            <MagnifyingGlassIcon className="w-5 h-5 text-gray-500 absolute left-3 top-1/2 transform -translate-y-1/2" />
-            {search && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-800 rounded transition-colors"
-              >
-                <Cross2Icon className="w-4 h-4 text-gray-500" />
-              </button>
             )}
           </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`p-2 rounded-lg border border-gray-800 transition-colors ${
-              showFilters ? 'bg-gray-800 text-gray-200' : 'text-gray-400 hover:bg-gray-800/50'
-            }`}
-          >
-            <MixerHorizontalIcon className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
 
-      {showFilters && (
-        <div className="mb-6 p-4 bg-[#1a1a1a] border border-gray-800 rounded-lg">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-gray-300">Sort & Filter</h3>
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <input
+                  type="text"
+                  id="url-search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setIsSearchFocused(false)}
+                  placeholder="Search URLs... (Ctrl/Cmd + K)"
+                  className="w-full p-2.5 pl-10 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                />
+                <MagnifyingGlassIcon className="w-5 h-5 text-gray-500 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                {search && (
+                  <button
+                    onClick={clearSearch}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-800 rounded transition-colors"
+                  >
+                    <Cross2Icon className="w-4 h-4 text-gray-500" />
+                  </button>
+                )}
+              </div>
+            </div>
             <button
-              onClick={() => setShowFilters(false)}
-              className="p-1 hover:bg-gray-800 rounded transition-colors"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-2.5 rounded-lg border border-gray-800 transition-colors flex items-center gap-2 ${
+                showFilters ? 'bg-gray-800 text-gray-200' : 'text-gray-400 hover:bg-gray-800/50'
+              }`}
+              title="Toggle Filters"
             >
-              <Cross2Icon className="w-4 h-4 text-gray-400" />
+              <MixerHorizontalIcon className="w-5 h-5" />
+              <span className="text-sm">Filters</span>
             </button>
           </div>
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[120px]">
-              <label className="block text-sm text-gray-400 mb-2">Filter By</label>
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-300 focus:outline-none focus:border-gray-700"
-              >
-                <option value="all">All URLs</option>
-                <option value="active">Active URLs</option>
-                {(isAdmin || isOwner) && (
-                  <option value="deprecated">Deprecated URLs</option>
-                )}
-                <option value="favorites">Favorite URLs</option>
-              </select>
-            </div>
-            <div className="flex-1 min-w-[120px]">
-              <label className="block text-sm text-gray-400 mb-2">Sort By</label>
-              <select
-                value={sortConfig.key}
-                onChange={(e) => handleSort(e.target.value)}
-                className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-300 focus:outline-none focus:border-gray-700"
-              >
-                <option value="short_path">Short Path</option>
-                <option value="redirect_url">Redirect URL</option>
-                <option value="favorites">Favorites</option>
-              </select>
-            </div>
-            <div className="flex-1 min-w-[120px]">
-              <label className="block text-sm text-gray-400 mb-2">Sort Direction</label>
-              <button
-                onClick={() => setSortConfig(prev => ({ ...prev, direction: prev.direction === 'asc' ? 'desc' : 'asc' }))}
-                className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-300 hover:bg-gray-800 transition-colors flex items-center justify-between"
-              >
-                <span>{sortConfig.direction === 'asc' ? 'Ascending' : 'Descending'}</span>
-                {sortConfig.direction === 'asc' ? (
-                  <ChevronUpIcon className="w-4 h-4" />
-                ) : (
-                  <ChevronDownIcon className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-            {favorites.size > 0 && (
-              <div className="ml-auto">
+
+          {/* Add URL Form - Now directly under search */}
+          {isAddUrlFormOpen && (
+            <div className="mt-4 p-4 bg-[#0a0a0a] border border-gray-800 rounded-lg">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-200">Add New URL</h3>
                 <button
-                  onClick={clearAllFavorites}
-                  className="px-4 py-2 rounded-lg text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors flex items-center gap-2"
+                  onClick={() => {
+                    setIsAddUrlFormOpen(false);
+                    setError('');
+                    setNewUrlData({ short_path: '', redirect_url: '', private: false, password: '' });
+                  }}
+                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
                 >
-                  <Cross2Icon className="w-4 h-4" />
-                  Clear All Favorites
+                  <Cross2Icon className="w-5 h-5 text-gray-400" />
                 </button>
               </div>
-            )}
-          </div>
-        </div>
-      )}
+              
+              <form onSubmit={handleInlineAddUrlSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label htmlFor="short_path" className="block text-sm font-medium text-gray-300">
+                      Short Path
+                    </label>
+                    <input
+                      type="text"
+                      id="short_path"
+                      name="short_path"
+                      required
+                      className="w-full p-2.5 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                      placeholder="(example) logo"
+                      value={newUrlData.short_path}
+                      onChange={(e) => setNewUrlData(prev => ({ ...prev, short_path: e.target.value }))}
+                    />
+                  </div>
 
-      <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : ''}`}>
-        {filteredUrls.map((url) => (
-          <div
-            key={url.short_path}
-            className={`border border-gray-800 rounded-lg transition-all duration-200 hover:border-gray-700 ${
-              viewMode === 'list' ? 'flex items-center justify-between p-4' : 'p-4'
-            }`}
-          >
-            {viewMode === 'list' ? (
-              <>
-                <div className="flex-1 pr-4">
-                  <div className="flex items-center gap-2">
-                    <p className="font-mono text-sm">/{url.short_path}</p>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      url.deprecated 
-                        ? 'bg-red-500/10 text-red-500' 
-                        : 'bg-green-500/10 text-green-500'
-                    }`}>
-                      {url.deprecated ? 'Deprecated' : 'Active'}
-                    </span>
-                  </div>
-                  <p className="text-gray-400 text-sm truncate">
-                    {url.redirect_url}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleCopyUrl(url.short_path)}
-                    className="p-2 text-gray-400 hover:text-gray-300 transition-colors"
-                    title="Copy URL"
-                  >
-                    {copiedUrl === url.short_path ? (
-                      <CheckIcon className="w-4 h-4" />
-                    ) : (
-                      <CopyIcon className="w-4 h-4" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => toggleFavorite(url.short_path)}
-                    className="p-2 text-gray-400 hover:text-yellow-500 transition-colors"
-                    title="Toggle favorite (Ctrl/Cmd + F)"
-                  >
-                    {favorites.has(url.short_path) ? (
-                      <StarFilledIcon className="w-4 h-4 text-yellow-500" />
-                    ) : (
-                      <StarIcon className="w-4 h-4" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleRestrictedAction(() => {
-                      setUrlToEdit(url);
-                      setShowEditDialog(true);
-                    })}
-                    className="p-2 text-gray-400 hover:text-blue-500 transition-colors"
-                    title="Edit URL"
-                  >
-                    <Pencil1Icon className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleToggleDeprecated(url)}
-                    disabled={loadingStates.deprecating.has(url.short_path)}
-                    className={`p-2 transition-colors ${
-                      url.deprecated 
-                        ? 'text-yellow-500 hover:text-yellow-400' 
-                        : 'text-green-500 hover:text-green-400'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    title={url.deprecated ? 'Activate URL' : 'Deprecate URL'}
-                  >
-                    {loadingStates.deprecating.has(url.short_path) ? (
-                      <LoadingSpinner />
-                    ) : (
-                      <GlobeIcon className="w-4 h-4" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(url)}
-                    disabled={loadingStates.deleting === url.short_path}
-                    className="p-2 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Delete URL"
-                  >
-                    {loadingStates.deleting === url.short_path ? (
-                      <LoadingSpinner />
-                    ) : (
-                      <TrashIcon className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <p className="font-mono text-sm">/{url.short_path}</p>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      url.deprecated 
-                        ? 'bg-red-500/10 text-red-500' 
-                        : 'bg-green-500/10 text-green-500'
-                    }`}>
-                      {url.deprecated ? 'Deprecated' : 'Active'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleCopyUrl(url.short_path)}
-                      className="p-1.5 text-gray-400 hover:text-gray-300 transition-colors"
-                      title="Copy URL"
-                    >
-                      {copiedUrl === url.short_path ? (
-                        <CheckIcon className="w-4 h-4" />
-                      ) : (
-                        <CopyIcon className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => toggleFavorite(url.short_path)}
-                      className="p-1.5 text-gray-400 hover:text-yellow-500 transition-colors"
-                      title="Toggle favorite (Ctrl/Cmd + F)"
-                    >
-                      {favorites.has(url.short_path) ? (
-                        <StarFilledIcon className="w-4 h-4 text-yellow-500" />
-                      ) : (
-                        <StarIcon className="w-4 h-4" />
-                      )}
-                    </button>
+                  <div className="space-y-2">
+                    <label htmlFor="redirect_url" className="block text-sm font-medium text-gray-300">
+                      Redirect URL
+                    </label>
+                    <input
+                      type="url"
+                      id="redirect_url"
+                      name="redirect_url"
+                      required
+                      className="w-full p-2.5 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                      placeholder="URL to redirect to"
+                      value={newUrlData.redirect_url}
+                      onChange={(e) => setNewUrlData(prev => ({ ...prev, redirect_url: e.target.value }))}
+                    />
                   </div>
                 </div>
-                <p className="text-gray-400 text-sm break-all">
-                  {url.redirect_url}
-                </p>
-                <div className="flex items-center gap-2 pt-2 border-t border-gray-800">
-                  <button
-                    onClick={() => handleRestrictedAction(() => {
-                      setUrlToEdit(url);
-                      setShowEditDialog(true);
-                    })}
-                    className="flex-1 px-3 py-1.5 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleToggleDeprecated(url)}
-                    disabled={loadingStates.deprecating.has(url.short_path)}
-                    className={`flex-1 px-3 py-1.5 rounded text-sm inline-flex items-center justify-center gap-2 ${
-                      url.deprecated 
-                        ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20' 
-                        : 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    {loadingStates.deprecating.has(url.short_path) ? (
-                      <>
-                        <LoadingSpinner />
-                        <span>{url.deprecated ? 'Activating...' : 'Deprecating...'}</span>
-                      </>
-                    ) : (
-                      url.deprecated ? 'Activate' : 'Deprecate'
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(url)}
-                    disabled={loadingStates.deleting === url.short_path}
-                    className="flex-1 px-3 py-1.5 rounded text-sm inline-flex items-center justify-center gap-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loadingStates.deleting === url.short_path ? (
-                      <>
-                        <LoadingSpinner />
-                        <span>Deleting...</span>
-                      </>
-                    ) : (
-                      'Delete'
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
 
-      {showEditDialog && urlToEdit && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#1a1a1a] border border-gray-800 rounded-xl w-full max-w-lg">
-            <div className="flex items-center justify-between p-6 border-b border-gray-800">
-              <h2 className="text-xl font-semibold text-gray-200">Edit URL</h2>
-              <button
-                onClick={() => {
-                  setShowEditDialog(false);
-                  setUrlToEdit(null);
-                }}
-                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                <Cross2Icon className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            <div className="p-6">
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                handleEdit({
-                  short_path: urlToEdit.short_path,
-                  redirect_url: formData.get('redirect_url')
-                });
-                setShowEditDialog(false);
-              }} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
-                    Short Path
-                  </label>
+                <div className="flex items-center space-x-3 pt-2">
                   <input
-                    type="text"
-                    value={urlToEdit.short_path}
-                    disabled
-                    className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-400"
+                    type="checkbox"
+                    id="add-url-private"
+                    name="private"
+                    checked={newUrlData.private}
+                    onChange={(e) => {
+                      const isChecked = e.target.checked;
+                      setNewUrlData(prev => ({
+                        ...prev,
+                        private: isChecked,
+                        password: isChecked ? prev.password : '' // Clear password if unchecked
+                      }));
+                    }}
+                    className="rounded border-gray-800 bg-[#1a1a1a] text-blue-500 focus:ring-blue-500"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
-                    Redirect URL
+                  <label htmlFor="add-url-private" className="text-sm font-medium text-gray-300">
+                    Password protect this URL
                   </label>
-                  <input
-                    type="url"
-                    name="redirect_url"
-                    defaultValue={urlToEdit.redirect_url}
-                    className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                    required
-                  />
                 </div>
-                <div className="flex justify-end gap-3 pt-4">
+
+                {newUrlData.private && (
+                  <div id="add-url-password-field" className="space-y-2">
+                    <label htmlFor="add-url-password" className="block text-sm font-medium text-gray-300">
+                      Password
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        id="add-url-password"
+                        name="password"
+                        value={newUrlData.password}
+                        onChange={(e) => setNewUrlData(prev => ({ ...prev, password: e.target.value }))}
+                        placeholder="Enter password"
+                        className="w-full p-2.5 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newPass = generateSecurePassword();
+                          setNewUrlData(prev => ({ ...prev, password: newPass }));
+                        }}
+                        className="px-4 py-2.5 rounded-lg text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors whitespace-nowrap"
+                      >
+                        Generate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(prev => !prev)}
+                        className="p-2.5 hover:bg-gray-800 rounded-lg transition-colors text-gray-400"
+                        title={showPassword ? "Hide Password" : "Show Password"}
+                      >
+                        {showPassword ? <EyeOpenIcon className="h-5 w-5" /> : <EyeClosedIcon className="h-5 w-5" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <p className="text-red-500 text-sm font-medium">{error}</p>
+                )}
+
+                <div className="flex justify-end space-x-4 pt-4">
                   <button
                     type="button"
                     onClick={() => {
-                      setShowEditDialog(false);
-                      setUrlToEdit(null);
+                      setIsAddUrlFormOpen(false);
+                      setError('');
+                      setNewUrlData({ short_path: '', redirect_url: '', private: false, password: '' });
                     }}
-                    className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-300 transition-colors"
+                    className="px-4 py-2.5 rounded-lg text-sm bg-[#1a1a1a] text-gray-300 hover:bg-[#111] transition-colors border border-gray-800"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center gap-2"
+                    className="px-4 py-2.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors"
                   >
-                    <CheckIcon className="w-4 h-4" />
-                    Save Changes
+                    Add URL
                   </button>
                 </div>
               </form>
             </div>
-          </div>
+          )}
+
+          {/* Filters Panel */}
+          {showFilters && (
+            <div className="pt-4 border-t border-gray-800">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-gray-300">Sort & Filter</h3>
+                <button
+                  onClick={() => setShowFilters(false)}
+                  className="p-1 hover:bg-gray-800 rounded transition-colors"
+                >
+                  <Cross2Icon className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="flex-1 min-w-[120px]">
+                  <label className="block text-sm text-gray-400 mb-2">Filter By</label>
+                  <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-300 focus:outline-none focus:border-gray-700"
+                  >
+                    <option value="all">All URLs</option>
+                    <option value="active">Active URLs</option>
+                    {(isAdmin || isOwner) && (
+                      <option value="deprecated">Deprecated URLs</option>
+                    )}
+                    <option value="favorites">Favorite URLs</option>
+                  </select>
+                </div>
+                <div className="flex-1 min-w-[120px]">
+                  <label className="block text-sm text-gray-400 mb-2">Sort By</label>
+                  <select
+                    value={sortConfig.key}
+                    onChange={(e) => handleSort(e.target.value)}
+                    className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-300 focus:outline-none focus:border-gray-700"
+                  >
+                    <option value="short_path">Short Path</option>
+                    <option value="redirect_url">Redirect URL</option>
+                    <option value="favorites">Favorites</option>
+                  </select>
+                </div>
+                <div className="flex-1 min-w-[120px]">
+                  <label className="block text-sm text-gray-400 mb-2">Sort Direction</label>
+                  <button
+                    onClick={() => setSortConfig(prev => ({ ...prev, direction: prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                    className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-300 hover:bg-gray-800 transition-colors flex items-center justify-between"
+                  >
+                    <span>{sortConfig.direction === 'asc' ? 'Ascending' : 'Descending'}</span>
+                    {sortConfig.direction === 'asc' ? (
+                      <ChevronUpIcon className="w-4 h-4" />
+                    ) : (
+                      <ChevronDownIcon className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                {favorites.size > 0 && (
+                  <div className="ml-auto">
+                    <button
+                      onClick={clearAllFavorites}
+                      className="px-4 py-2 rounded-lg text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors flex items-center gap-2"
+                    >
+                      <Cross2Icon className="w-4 h-4" />
+                      Clear All Favorites
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      )}
-    </>
+      </div>
+
+      {/* URL Grid/List */}
+      <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : ''}`}>
+        {filteredUrls.map((url) => (
+          <div
+            key={url.short_path}
+            className={`bg-[#1a1a1a] border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-all duration-200`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg text-gray-200 truncate">
+                    /{url.short_path}
+                  </h3>
+                  <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${
+                      url.deprecated 
+                      ? 'bg-yellow-500/10 text-yellow-500'
+                        : 'bg-green-500/10 text-green-500'
+                    }`}>
+                      {url.deprecated ? 'Deprecated' : 'Active'}
+                    </span>
+                  {url.private && (
+                    <span className="text-xs px-2 py-0.5 rounded flex-shrink-0 bg-blue-500/10 text-blue-500">
+                      Password Protected
+                    </span>
+                  )}
+                </div>
+                <a
+                  href={url.redirect_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-gray-400 hover:text-gray-300 truncate block transition-colors"
+                  title={url.redirect_url}
+                >
+                  {url.redirect_url}
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                {showUrlManagement && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowEditUrl(true);
+                        setEditingUrl(url);
+                      }}
+                      className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                      title="Edit URL"
+                    >
+                      <Pencil1Icon className="w-4 h-4 text-gray-400" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(url)}
+                      className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                      title="Delete URL"
+                    >
+                      <TrashIcon className="w-4 h-4 text-gray-400" />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Edit URL Dialog */}
+      <EditUrlDialog
+        isOpen={showEditUrl}
+        onClose={() => {
+          setShowEditUrl(false);
+          setEditingUrl(null);
+        }}
+        url={editingUrl}
+        onSave={handleEdit}
+      />
+    </div>
   );
 
   if (status === 'loading') {
@@ -1536,10 +1500,18 @@ export default function AdminDashboard() {
   const showManageAdmins = isOwner;
   const showUrlManagement = isAdmin || isOwner;
 
-
   return (
     <>
       <div className="max-w-7xl mx-auto p-4">
+        {/* Toast Notification */}
+        {toast.show && (
+          <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+            toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+          } text-white`}>
+            {toast.message}
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
