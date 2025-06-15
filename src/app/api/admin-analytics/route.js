@@ -50,7 +50,8 @@ export async function GET(req) {
         { count: totalUrls, error: urlError },
         { count: totalVisits, error: visitError },
         { data: allVisits, error: allVisitsError }, // Fetch all visits for aggregation
-        { data: recentVisits, error: recentError }
+        { data: recentVisits, error: recentError },
+        { data: urls, error: urlsDataError }
       ] = await Promise.all([
         // Get total number of URLs
         supabase
@@ -65,15 +66,20 @@ export async function GET(req) {
         // Get all visits (all columns needed for full analysis)
         supabase
           .from('visits')
-          .select('short_path, user_agent, ip_address, environment, version_number, visited_at, user_id, browser, os')
+          .select('short_path, user_agent, ip_address, environment, version_number, visited_at, user_id')
           .gte('visited_at', timeRange === 0 ? '1970-01-01' : cutoffDate.toISOString()),
         
         // Get recent visits (last 10)
         supabase
           .from('visits')
-          .select('short_path, user_agent, ip_address, environment, version_number, visited_at, user_id, browser, os')
+          .select('short_path, user_agent, ip_address, environment, version_number, visited_at, user_id')
           .order('id', { ascending: false })
-          .limit(10)
+          .limit(10),
+
+        // Get all URLs to calculate active/deprecated counts
+        supabase
+          .from(process.env.SUPABASE_DB_NAME)
+          .select('deprecated')
       ]);
 
       // Check for any errors
@@ -81,6 +87,7 @@ export async function GET(req) {
       if (visitError) throw visitError;
       if (allVisitsError) throw allVisitsError;
       if (recentError) throw recentError;
+      if (urlsDataError) throw urlsDataError;
 
       // Group and count visits per short_path
       const visitCounts = {};
@@ -135,6 +142,9 @@ export async function GET(req) {
       return {
         totalUrls,
         totalVisits,
+        activeUrls: totalUrls - (urls?.filter(u => u.deprecated)?.length || 0),
+        deprecatedUrls: urls?.filter(u => u.deprecated)?.length || 0,
+        averageClicks: totalVisits / (totalUrls || 1),
         visitStats: visitsPerUrl,
         recentVisits,
         browserDistribution,
