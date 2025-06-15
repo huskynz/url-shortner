@@ -69,7 +69,7 @@ function PasswordProtectedContent() {
 
   if (loadingUrl) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
         <LoadingSpinner size="lg" />
       </div>
     );
@@ -80,42 +80,53 @@ function PasswordProtectedContent() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-gray-200 p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <LockClosedIcon className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Password Protected</h1>
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] px-4">
+      <div className="max-w-md w-full space-y-8 bg-[#1a1a1a] p-8 rounded-xl border border-gray-800">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-blue-500/10">
+            <LockClosedIcon className="h-6 w-6 text-blue-500" />
+          </div>
+          <h2 className="mt-6 text-2xl font-bold text-gray-200">
+            Password Protected
+          </h2>
           {urlDetails.custom_message ? (
-            <p className="text-gray-400">{urlDetails.custom_message}</p>
+            <p className="mt-2 text-sm text-gray-400">{urlDetails.custom_message}</p>
           ) : (
-            <p className="text-gray-400">This URL is password protected. Please enter the password to continue.</p>
+            <p className="mt-2 text-sm text-gray-400">
+              The URL <span className="font-semibold text-gray-300">/{shortPath}</span> is password protected. Please enter the password to continue.
+            </p>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div>
+            <label htmlFor="password" className="sr-only">
+              Password
+            </label>
             <input
+              id="password"
+              name="password"
               type="password"
+              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              className="appearance-none relative block w-full px-3 py-2 border border-gray-800 rounded-lg bg-[#0a0a0a] text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter password"
-              className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-gray-600"
-              required
             />
           </div>
 
           {error && (
-            <div className="text-red-500 text-sm text-center">
-              {error}
-            </div>
+            <div className="text-sm text-red-500 text-center">{error}</div>
           )}
 
-          <button
-            type="submit"
-            className="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-          >
-            Continue
-          </button>
+          <div>
+            <button
+              type="submit"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            >
+              Continue
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -125,7 +136,7 @@ function PasswordProtectedContent() {
 export default function PasswordProtected() {
   return (
     <Suspense fallback={
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
         <LoadingSpinner size="lg" />
       </div>
     }>
