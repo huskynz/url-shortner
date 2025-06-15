@@ -35,7 +35,7 @@ export async function GET(req) {
 
     // Get time range from query parameters
     const { searchParams } = new URL(req.url);
-    const timeRange = parseInt(searchParams.get('timeRange') || '30'); // Default to 30 days
+    const timeRange = parseInt(searchParams.get('timeRange') || '0'); // Changed from '30' to '0' for All time
 
     // Use cached data for analytics that don't need real-time updates
     const analyticsData = await getCachedData(`analytics_${timeRange}`, async () => {

@@ -26,7 +26,7 @@ const TIME_RANGES = [
 ];
 
 export default function AnalyticsDashboard({ analytics: initialAnalytics, isLoading: initialLoading, error: initialError }) {
-  const [selectedTimeRange, setSelectedTimeRange] = useState(30); // Default to 30 days
+  const [selectedTimeRange, setSelectedTimeRange] = useState(0); // Changed from 30 to 0 for All time
   const [analytics, setAnalytics] = useState(initialAnalytics);
   const [isLoading, setIsLoading] = useState(initialLoading);
   const [error, setError] = useState(initialError);

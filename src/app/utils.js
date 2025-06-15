@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function fetchRedirectUrl(location) {
   // Special routes - don't redirect
-  if (location === 'invaildlink' || location === 'deprecated' || location === 'urls' || location === 'access-denied') {
+  if (location === 'invaildlink' || location === 'deprecated' || location === 'urls' || location === 'access-denied' || location === 'password-protected') {
     return null;
   }
 
@@ -45,35 +45,47 @@ export async function fetchRedirectUrl(location) {
     console.warn(`Access denied for IP ${ip} from blocked country: ${userCountry}`);
     return {
       redirect_url: "/access-denied",
-      deprecated: false, // Treat as not deprecated but denied
+      deprecated: false,
       is_blocked: true,
     };
   }
 
-  const { data, error } = await supabase
+  // Fetch the URL from the database
+  const { data: urlData, error } = await supabase
     .from(process.env.SUPABASE_DB_NAME)
-    .select("redirect_url, deprecated, short_path")
-    .eq("short_path", location)
+    .select('*')
+    .eq('short_path', location)
     .single();
 
-  if (error || !data) {
+  if (error || !urlData) {
+    console.warn(`URL not found: ${location}`);
     return {
       redirect_url: "/invaildlink",
-      deprecated: false
+      deprecated: false,
     };
   }
 
-  if (data.deprecated) {
+  // Check if URL is deprecated
+  if (urlData.deprecated) {
+    console.warn(`Deprecated URL accessed: ${location}`);
     return {
-      redirect_url: `/deprecated?dpl=${location}`,
-      deprecated: true
+      redirect_url: "/deprecated",
+      deprecated: true,
     };
   }
 
-  return {
-    redirect_url: data.redirect_url,
-    deprecated: false
-  };
+  // Check if URL is password protected
+  if (urlData.private) {
+    console.warn(`Password protected URL accessed: ${location}`);
+    return {
+      redirect_url: "/password-protected",
+      private: true,
+      short_path: location,
+      custom_message: urlData.custom_message || null
+    };
+  }
+
+  return urlData;
 }
 
 export async function redirectToUrl(location) {
