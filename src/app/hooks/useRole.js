@@ -8,10 +8,21 @@ export function useRole() {
 
   useEffect(() => {
     async function fetchRole() {
-      if (session?.user?.username) {
+      if (session?.user?.role) {
+        setRole(session.user.role);
+        return;
+      }
+      if (session?.user?.id || session?.user?.email || session?.user?.github_id) {
         const res = await fetch('/api/admin-management');
         const admins = await res.json();
-        const userAdmin = admins.find(admin => admin.github_username === session.user.username);
+        let userAdmin = null;
+        if (session.user.id) {
+          userAdmin = admins.find(admin => admin.id === session.user.id);
+        } else if (session.user.email) {
+          userAdmin = admins.find(admin => admin.email === session.user.email);
+        } else if (session.user.github_id) {
+          userAdmin = admins.find(admin => admin.github_id === session.user.github_id);
+        }
         setRole(userAdmin?.role || null);
       }
     }

@@ -10,7 +10,7 @@ export default function AddAdminDialog({
   admins, 
   onRemove, 
   onUpdateRole, 
-  currentUsername 
+  currentEmail 
 }) {
   const { isAdmin, isOwner } = useRole();
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -135,68 +135,63 @@ export default function AddAdminDialog({
             <h4 className="text-md font-semibold text-gray-300 mb-4">Current Admins</h4>
             <div className="space-y-3">
               {admins.map((admin) => (
-                <div key={admin.github_username} className="flex items-center justify-between p-3 border border-gray-800 rounded">
+                <div key={admin.email} className="flex items-center justify-between p-3 border border-gray-800 rounded">
                   <div className="flex items-center gap-3">
-                    <img 
-                      src={`https://github.com/${admin.github_username}.png`}
-                      alt={admin.github_username}
-                      className="w-8 h-8 rounded-full"
-                    />
+                    {admin.github_username && (
+                      <img 
+                        src={`https://github.com/${admin.github_username}.png`}
+                        alt={admin.github_username}
+                        className="w-8 h-8 rounded-full"
+                      />
+                    )}
                     <div>
-                      <span className="text-gray-300">{admin.github_username}</span>
-                      {admin.github_username === currentUsername && (
+                      <span className="text-gray-300">{admin.github_username || admin.email}</span>
+                      {admin.email === currentEmail && (
                         <span className="ml-2 text-xs bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded">
                           You
                         </span>
                       )}
                     </div>
                   </div>
-                  {isOwner && admin.github_username !== currentUsername && (
-                    <div className="flex items-center gap-2">
-                      <div 
-                        ref={el => dropdownRefs.current[admin.github_username] = el}
-                        className="relative"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setOpenDropdown(openDropdown === admin.github_username ? null : admin.github_username)}
-                          className="px-3 py-1.5 rounded text-sm bg-[#1a1a1a] border border-gray-800 text-gray-300 hover:bg-[#222] transition-colors flex items-center gap-2 min-w-[100px] justify-between"
-                        >
-                          <span>{roleOptions.find(r => r.value === admin.role)?.label}</span>
-                          <ChevronDownIcon className={`transition-transform ${openDropdown === admin.github_username ? 'rotate-180' : ''}`} />
-                        </button>
-                        
-                        {openDropdown === admin.github_username && (
-                          <div className="absolute top-full mt-1 w-full bg-[#1a1a1a] border border-gray-800 rounded-lg overflow-hidden shadow-lg z-10">
-                            {roleOptions.map((role) => (
-                              <button
-                                key={role.value}
-                                type="button"
-                                onClick={() => {
-                                  onUpdateRole(admin.github_username, role.value);
-                                  setOpenDropdown(null);
-                                }}
-                                className={`w-full px-3 py-1.5 text-left text-sm hover:bg-[#222] transition-colors ${
-                                  role.value === admin.role 
-                                    ? 'text-blue-500 bg-blue-500/5' 
-                                    : 'text-gray-300'
-                                }`}
-                              >
-                                {role.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
                       <button
-                        onClick={() => onRemove(admin.github_username)}
-                        className="px-2 py-1.5 rounded text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                        type="button"
+                        onClick={() => setOpenDropdown(openDropdown === admin.email ? null : admin.email)}
+                        className="px-3 py-1.5 rounded text-sm bg-[#1a1a1a] border border-gray-800 text-gray-300 hover:bg-[#222] transition-colors flex items-center gap-2 min-w-[100px] justify-between"
                       >
-                        Remove
+                        <span>{roleOptions.find(r => r.value === admin.role)?.label}</span>
+                        <ChevronDownIcon className={`transition-transform ${openDropdown === admin.email ? 'rotate-180' : ''}`} />
                       </button>
+                      {openDropdown === admin.email && (
+                        <div className="absolute top-full mt-1 w-full bg-[#1a1a1a] border border-gray-800 rounded-lg overflow-hidden shadow-lg z-10">
+                          {roleOptions.map((role) => (
+                            <button
+                              key={role.value}
+                              type="button"
+                              onClick={() => {
+                                onUpdateRole(admin.email, role.value);
+                                setOpenDropdown(null);
+                              }}
+                              className={`w-full px-3 py-1.5 text-left text-sm hover:bg-[#222] transition-colors ${
+                                role.value === admin.role 
+                                  ? 'text-blue-500 bg-blue-500/5' 
+                                  : 'text-gray-300'
+                              }`}
+                            >
+                              {role.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
+                    <button
+                      onClick={() => onRemove(admin.email)}
+                      className="px-2 py-1.5 rounded text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

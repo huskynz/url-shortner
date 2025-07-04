@@ -43,6 +43,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import EditUrlDialog from '../components/EditUrlDialog';
 import ApiKeyDialog from '../components/ApiKeyDialog';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
+import md5 from 'blueimp-md5';
 
 const FilterSection = ({ filter, setFilter, search, setSearch, isAdmin, isOwner }) => {
   return (
@@ -116,7 +117,7 @@ export default function AdminDashboard() {
   });
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
-  const [newAdminRole, setNewAdminRole] = useState('viewer');
+  const [newAdminRole, setNewAdminRole] = useState('admin');
   const [adminError, setAdminError] = useState('');
   const [loadingStates, setLoadingStates] = useState({
     deprecating: new Set(),
@@ -138,6 +139,20 @@ export default function AdminDashboard() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [copiedPasswordToast, setCopiedPasswordToast] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
+  const [resetPasswordTarget, setResetPasswordTarget] = useState(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [resetPasswordError, setResetPasswordError] = useState('');
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [copyLinkLoading, setCopyLinkLoading] = useState(false);
+  const [showCopyLinkDialog, setShowCopyLinkDialog] = useState(false);
+  const [copyLinkValue, setCopyLinkValue] = useState('');
+  // Add state for change role dialog
+  const [showChangeRoleDialog, setShowChangeRoleDialog] = useState(false);
+  const [changeRoleTarget, setChangeRoleTarget] = useState(null);
+  const [changeRoleValue, setChangeRoleValue] = useState('admin');
+  const [changeRoleLoading, setChangeRoleLoading] = useState(false);
+  const [changeRoleError, setChangeRoleError] = useState('');
 
   // 3. All useEffect hooks
   // Load data on mount
@@ -495,30 +510,37 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleAddAdmin = async (github_username) => {
+  const handleAddAdmin = async (email, github_username) => {
+    if (!email) {
+      setAdminError('Email is required.');
+      return;
+    }
     try {
       const res = await fetch('/api/admin-management', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ github_username, role: newAdminRole }),
+        body: JSON.stringify({ email, github_username, role: newAdminRole }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       loadAdmins();
       setAdminError('');
-      setNewAdminRole('viewer');
-      showToast(`Admin '${github_username}' added successfully.`, 'success');
+      setNewAdminRole('admin');
+      showToast(`Admin '${email}' added successfully.`, 'success');
     } catch (err) {
-      console.log("Error in handleAddAdmin:", err);
       showToast(err.message || 'Failed to add admin', 'error');
     }
   };
 
-  const handleRemoveAdmin = async (github_username) => {
+  const handleRemoveAdmin = async (email) => {
+    if (email === session?.user?.email) {
+      showToast('You cannot remove yourself.', 'error');
+      return;
+    }
     setConfirmDialog({
       isOpen: true,
       title: 'Confirm Admin Removal',
-      message: `Are you sure you want to remove ${github_username} as an admin? This action cannot be undone.`,
+      message: `Are you sure you want to remove ${email} as an admin? This action cannot be undone.`,
       confirmText: 'Remove',
       variant: 'danger',
       onConfirm: async () => {
@@ -526,12 +548,12 @@ export default function AdminDashboard() {
           const res = await fetch(`/api/admin-management`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ github_username }),
+            body: JSON.stringify({ email }),
           });
           const data = await res.json();
           if (data.error) throw new Error(data.error);
           loadAdmins();
-          showToast(`Admin '${github_username}' removed successfully.`, 'success');
+          showToast(`Admin '${email}' removed successfully.`, 'success');
         } catch (error) {
           showToast(error.message || 'Failed to remove admin', 'error');
         } finally {
@@ -541,17 +563,21 @@ export default function AdminDashboard() {
     });
   };
 
-  const handleUpdateRole = async (github_username, role) => {
+  const handleUpdateRole = async (email, role) => {
+    if (email === session?.user?.email) {
+      showToast('You cannot change your own role.', 'error');
+      return;
+    }
     try {
       const res = await fetch('/api/admin-management', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ github_username, role }),
+        body: JSON.stringify({ email, role }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       loadAdmins();
-      showToast(`Admin '${github_username}' role updated to '${role}' successfully.`, 'success');
+      showToast(`Admin '${email}' role updated to '${role}' successfully.`, 'success');
     } catch (error) {
       showToast('Failed to update role', 'error');
     }
@@ -589,6 +615,56 @@ export default function AdminDashboard() {
         showToast(error.message || 'Failed to update URL', 'error');
       }
     });
+  };
+
+  const handleCopySetPasswordLink = async (admin) => {
+    setCopyLinkLoading(true);
+    try {
+      const res = await fetch('/api/admin-management/create-password-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: admin.email }),
+      });
+      const data = await res.json();
+      console.log('Password token API response:', data); // Debugging line
+      if (data.token) {
+        const link = `${window.location.origin}/set-password?token=${data.token}`;
+        try {
+          await navigator.clipboard.writeText(link);
+          showToast('Set password link copied to clipboard!', 'success');
+        } catch (clipboardErr) {
+          setCopyLinkValue(link);
+          setShowCopyLinkDialog(true);
+        }
+      } else {
+        showToast(data.error || 'Failed to generate link', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to generate link', 'error');
+    } finally {
+      setCopyLinkLoading(false);
+    }
+  };
+
+  const openChangeRoleDialog = (admin) => {
+    setChangeRoleTarget(admin);
+    setChangeRoleValue(admin.role);
+    setChangeRoleError('');
+    setShowChangeRoleDialog(true);
+  };
+
+  const handleChangeRole = async () => {
+    if (!changeRoleTarget?.email) return;
+    setChangeRoleLoading(true);
+    setChangeRoleError('');
+    try {
+      await handleUpdateRole(changeRoleTarget.email, changeRoleValue);
+      setShowChangeRoleDialog(false);
+    } catch (err) {
+      setChangeRoleError('Failed to change role');
+    } finally {
+      setChangeRoleLoading(false);
+    }
   };
 
   const renderOverview = () => (
@@ -714,37 +790,40 @@ export default function AdminDashboard() {
               <form onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.target);
-                handleAddAdmin(formData.get('github_username'));
+                const email = formData.get('email');
+                const github_username = formData.get('github_username') || undefined;
+                handleAddAdmin(email, github_username);
               }} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">
-                    GitHub Username
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                    placeholder="Enter email"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    GitHub Username (optional)
                   </label>
                   <input
                     type="text"
                     name="github_username"
                     className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                    placeholder="Enter GitHub username"
-                    required
+                    placeholder="e.g. octocat"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">Role</label>
-                  <div className="flex rounded-lg border border-gray-800 overflow-hidden bg-[#1a1a1a] p-1">
-                    <button
-                      type="button"
-                      onClick={() => setNewAdminRole('viewer')}
-                      className={`flex-1 px-4 py-2 text-sm font-medium transition-colors rounded-lg ${
-                        newAdminRole === 'viewer'
-                          ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'
-                      }`}
-                    >
-                      Viewer
-                    </button>
+                  <div className="flex rounded-lg border border-gray-800 overflow-hidden bg-[#1a1a1a] p-1 gap-2 min-w-0">
                     <button
                       type="button"
                       onClick={() => setNewAdminRole('admin')}
-                      className={`flex-1 px-4 py-2 text-sm font-medium transition-colors rounded-lg ${
+                      className={`px-4 py-2 text-sm font-medium transition-colors rounded-lg ${
                         newAdminRole === 'admin'
                           ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'
                       }`}
@@ -754,7 +833,7 @@ export default function AdminDashboard() {
                     <button
                       type="button"
                       onClick={() => setNewAdminRole('owner')}
-                      className={`flex-1 px-4 py-2 text-sm font-medium transition-colors rounded-lg ${
+                      className={`px-4 py-2 text-sm font-medium transition-colors rounded-lg ${
                         newAdminRole === 'owner'
                           ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'
                       }`}
@@ -763,9 +842,8 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                   <p className="text-xs text-gray-400 mt-2">
-                    {newAdminRole === 'viewer' && 'Read-only access to view URLs and analytics'}
-                    {newAdminRole === 'admin' && 'Manage URLs and view analytics'}
-                    {newAdminRole === 'owner' && 'Full access to all features, including admin management and API keys'}
+                    {newAdminRole === 'admin' && 'Manage URLs, analytics, and API keys.'}
+                    {newAdminRole === 'owner' && 'Full access to all features, including admin management.'}
                   </p>
                 </div>
                 {adminError && (
@@ -796,82 +874,85 @@ export default function AdminDashboard() {
                 <p className="text-gray-400">No admin users found.</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {admins.map((admin) => (
-                  <div
-                    key={admin.github_username}
-                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-[#0a0a0a] border border-gray-800 rounded-lg hover:border-gray-700 transition-colors"
-                  >
-                    <div className="flex items-center gap-4 mb-3 sm:mb-0">
-                      <img
-                        src={`https://github.com/${admin.github_username}.png`}
-                        alt={admin.github_username}
-                        className="w-10 h-10 rounded-full"
-                      />
-                      <div>
-                        <p className="text-gray-200 font-medium">{admin.github_username}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            admin.role === 'owner' 
-                              ? 'bg-purple-500/10 text-purple-500' 
-                              : admin.role === 'admin' ? 'bg-blue-500/10 text-blue-500' : 'bg-gray-500/10 text-gray-500'
-                          }`}>
-                            {admin.role}
-                          </span>
-                          {admin.github_username === session?.user?.username && (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-500">
-                              You
+              <div className="space-y-5">
+                {admins.map((admin, index) => {
+                  const isSelf = admin.email === session?.user?.email;
+                  const avatarUrl = admin.github_username
+                    ? `https://github.com/${admin.github_username}.png`
+                    : `https://www.gravatar.com/avatar/${admin.email ? md5(admin.email.trim().toLowerCase()) : '00000000000000000000000000000000'}?d=identicon`;
+                  const uniqueKey = admin.email || admin.github_username || admin.id || index;
+                  return (
+                    <div
+                      key={uniqueKey}
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-5 px-4 bg-[#0a0a0a] border border-gray-800 rounded-lg hover:border-gray-700 transition-colors"
+                    >
+                      <div className="flex items-center gap-4 mb-2">
+                        <img
+                          src={avatarUrl}
+                          alt={admin.email}
+                          className="w-10 h-10 rounded-full"
+                        />
+                        <div>
+                          <p className="text-gray-200 font-medium">{admin.email}</p>
+                          {admin.github_username && (
+                            <p className="text-xs text-gray-400">@{admin.github_username}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              admin.role === 'owner'
+                                ? 'bg-purple-500/10 text-purple-500'
+                                : 'bg-blue-500/10 text-blue-500'
+                            }`}>
+                              {admin.role}
                             </span>
+                            {isSelf && (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-500">
+                                You
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {!isSelf && showManageAdmins && (
+                        <div className="flex flex-col sm:flex-row items-stretch gap-4 w-full sm:w-auto py-2 mt-2">
+                          <div className="flex flex-wrap rounded-lg border border-gray-800 overflow-x-auto bg-[#1a1a1a] p-1 gap-2 min-w-0 max-w-full">
+                            <button
+                              type="button"
+                              onClick={() => openChangeRoleDialog(admin)}
+                              className="px-4 py-2 text-sm font-medium transition-colors rounded-lg bg-gray-700 text-white hover:bg-blue-600"
+                            >
+                              Change Role
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => handleRemoveAdmin(admin.email)}
+                            className="px-3 py-1.5 rounded-lg text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors font-medium w-full sm:w-auto"
+                          >
+                            Remove
+                          </button>
+                          <button
+                            onClick={() => openResetPasswordDialog(admin)}
+                            className="px-3 py-1.5 rounded-lg text-sm bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 transition-colors font-medium w-full sm:w-auto"
+                          >
+                            Reset Password
+                          </button>
+                          {admin.passset === false && (
+                            <button
+                              onClick={() => handleCopySetPasswordLink(admin)}
+                              className="px-3 py-1.5 rounded-lg text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors font-medium w-full sm:w-auto"
+                              disabled={copyLinkLoading}
+                            >
+                              {copyLinkLoading ? 'Generating...' : 'Copy Set Password Link'}
+                            </button>
                           )}
                         </div>
-                      </div>
+                      )}
+                      {isSelf && (
+                        <p className="text-sm text-gray-500 italic">Cannot modify own role</p>
+                      )}
                     </div>
-                    {admin.github_username !== session?.user?.username ? (
-                      <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                        <div className="flex rounded-lg border border-gray-800 overflow-hidden bg-[#1a1a1a] p-1 w-full sm:w-auto">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateRole(admin.github_username, 'viewer')}
-                            className={`flex-1 px-3 py-1.5 text-sm font-medium transition-colors rounded-lg ${
-                              admin.role === 'viewer'
-                                ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'
-                            }`}
-                          >
-                            Viewer
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateRole(admin.github_username, 'admin')}
-                            className={`flex-1 px-3 py-1.5 text-sm font-medium transition-colors rounded-lg ${
-                              admin.role === 'admin'
-                                ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'
-                            }`}
-                          >
-                            Admin
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateRole(admin.github_username, 'owner')}
-                            className={`flex-1 px-3 py-1.5 text-sm font-medium transition-colors rounded-lg ${
-                              admin.role === 'owner'
-                                ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'
-                            }`}
-                          >
-                            Owner
-                          </button>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveAdmin(admin.github_username)}
-                          className="px-3 py-1.5 rounded-lg text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors font-medium w-full sm:w-auto"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 italic">Cannot modify own role</p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1500,8 +1581,115 @@ export default function AdminDashboard() {
   const showManageAdmins = isOwner;
   const showUrlManagement = isAdmin || isOwner;
 
+  // Add the Reset Password dialog at the bottom of the component
+  if (showResetPasswordDialog) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-[#1a1a1a] border border-gray-800 rounded-lg p-6 w-full max-w-sm">
+          <h3 className="text-lg font-semibold text-gray-200 mb-4">Reset Password for {resetPasswordTarget?.email}</h3>
+          <input
+            type="password"
+            className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200 mb-4"
+            placeholder="New password"
+            value={resetPasswordValue}
+            onChange={e => setResetPasswordValue(e.target.value)}
+            autoFocus
+          />
+          {resetPasswordError && <div className="text-red-500 text-sm mb-2">{resetPasswordError}</div>}
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setShowResetPasswordDialog(false)}
+              className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-300 transition-colors"
+              disabled={resetPasswordLoading}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleResetPassword}
+              className="px-4 py-2 rounded-lg text-sm bg-yellow-500 text-white hover:bg-yellow-600 transition-colors"
+              disabled={resetPasswordLoading}
+            >
+              {resetPasswordLoading ? 'Saving...' : 'Reset Password'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Add the fallback dialog
+  const copyLinkDialog = showCopyLinkDialog && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-[#1a1a1a] border border-gray-800 rounded-lg p-6 w-full max-w-sm">
+        <h3 className="text-lg font-semibold text-gray-200 mb-4">Set Password Link</h3>
+        <input
+          type="text"
+          className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200 mb-4"
+          value={copyLinkValue}
+          readOnly
+          onFocus={e => e.target.select()}
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => setShowCopyLinkDialog(false)}
+            className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-300 transition-colors"
+          >
+            Close
+          </button>
+          <button
+            onClick={async () => {
+              await navigator.clipboard.writeText(copyLinkValue);
+              showToast('Link copied to clipboard!', 'success');
+            }}
+            className="px-4 py-2 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Add the Change Role modal dialog at the root of the component, not inside any flex row
+  {showChangeRoleDialog && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-[#1a1a1a] border border-gray-800 rounded-lg p-6 w-full max-w-sm">
+        <h3 className="text-lg font-semibold text-gray-200 mb-4">Change Role for {changeRoleTarget?.email}</h3>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-400 mb-2">Select Role</label>
+          <select
+            value={changeRoleValue}
+            onChange={e => setChangeRoleValue(e.target.value)}
+            className="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200"
+          >
+            <option value="admin">Admin</option>
+            <option value="owner">Owner</option>
+          </select>
+        </div>
+        {changeRoleError && <div className="text-red-500 text-sm mb-2">{changeRoleError}</div>}
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => setShowChangeRoleDialog(false)}
+            className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-300 transition-colors"
+            disabled={changeRoleLoading}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleChangeRole}
+            className="px-4 py-2 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+            disabled={changeRoleLoading}
+          >
+            {changeRoleLoading ? 'Saving...' : 'Change Role'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
   return (
     <>
+      {copyLinkDialog}
       <div className="max-w-7xl mx-auto p-4">
         {/* Toast Notification */}
         {toast.show && (
@@ -1658,6 +1846,16 @@ export default function AdminDashboard() {
       <NoAccessDialog 
         isOpen={showNoAccess} 
         onClose={() => setShowNoAccess(false)} 
+      />
+      {/* Render ConfirmDialog for admin actions */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText}
+        variant={confirmDialog.variant}
       />
     </>
   );
