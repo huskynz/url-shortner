@@ -36,8 +36,8 @@ export default function ConfirmDialog({
             Cancel
           </button>
           <button
-            onClick={() => {
-              onConfirm();
+            onClick={async () => {
+              await onConfirm();
               onClose();
             }}
             className={`px-4 py-2 rounded text-sm transition-colors ${buttonVariants[variant]}`}
