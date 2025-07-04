@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from '@/app/lib/auth';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -38,7 +40,7 @@ export async function GET(req) {
 
   try {
     const { data, error } = await supabase
-      .from(process.env.ADMINS_DB)
+      .from('github_admins')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -55,13 +57,16 @@ export async function POST(request) {
   }
 
   try {
-    const { github_username, role = 'viewer' } = await request.json();
-    
-    // Check if admin already exists
+    const { email, github_id, github_username, role } = await request.json();
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    }
+    const adminRole = role === 'owner' ? 'owner' : 'admin'; // Only allow 'admin' or 'owner'
+    // Check if admin already exists by email or github_id
     const { data: existing } = await supabase
-      .from(process.env.ADMINS_DB)
-      .select('github_username')
-      .eq('github_username', github_username)
+      .from('github_admins')
+      .select('id')
+      .or(`email.eq.${email},github_id.eq.${github_id}`)
       .single();
 
     if (existing) {
@@ -69,24 +74,25 @@ export async function POST(request) {
     }
 
     const { error } = await supabase
-      .from(process.env.ADMINS_DB)
-      .insert([{ github_username, role }]);
+      .from('github_admins')
+      .insert([{ email, github_id, github_username, role: adminRole }]);
 
-    if (error) throw error;
+    if (error) return NextResponse.json({ error: error.message || error }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to add admin' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Failed to add admin' }, { status: 500 });
   }
 }
 
 export async function DELETE(request) {
   try {
-    const { github_username } = await request.json();
+    const { email, github_id } = await request.json();
     
+    // Delete by email or github_id
     const { error } = await supabase
-      .from(process.env.ADMINS_DB)
+      .from('github_admins')
       .delete()
-      .eq('github_username', github_username);
+      .or(`email.eq.${email},github_id.eq.${github_id}`);
 
     if (error) throw error;
     return NextResponse.json({ success: true });
@@ -97,16 +103,74 @@ export async function DELETE(request) {
 
 export async function PUT(request) {
   try {
-    const { github_username, role } = await request.json();
+    const { email, github_id, role } = await request.json();
     
+    // Update by email or github_id
     const { error } = await supabase
-      .from(process.env.ADMINS_DB)
+      .from('github_admins')
       .update({ role })
-      .eq('github_username', github_username);
-
+      .or(`email.eq.${email},github_id.eq.${github_id}`);
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to update admin role' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update admin' }, { status: 500 });
+  }
+}
+
+// New endpoint for admin password reset
+export async function POST_reset_password(request) {
+  try {
+    // Authenticate the requester
+    if (!await verifyAuth(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    // Get the requester session (to check role)
+    const token = await getToken({ req: request });
+    if (!token || (token.role !== 'owner' && token.role !== 'admin')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+    const { email, password } = await request.json();
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    // Update the user's password
+    const { error: updateError } = await supabase
+      .from('github_admins')
+      .update({ password: hashedPassword, passset: true })
+      .eq('email', email);
+    if (updateError) throw updateError;
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to reset password' }, { status: 500 });
+  }
+}
+
+// New endpoint to create a password set token
+export async function POST_create_password_token(request) {
+  try {
+    if (!await verifyAuth(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const token = await getToken({ req: request });
+    if (!token || (token.role !== 'owner' && token.role !== 'admin')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+    const { email } = await request.json();
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    }
+    // Generate a UUID token
+    const resetToken = uuidv4();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
+    // Insert into password_reset_tokens
+    const { error: insertError } = await supabase
+      .from('password_reset_tokens')
+      .insert([{ email, token: resetToken, expires_at: expiresAt, used: false }]);
+    if (insertError) return NextResponse.json({ error: insertError.message || insertError }, { status: 500 });
+    return NextResponse.json({ token: resetToken });
+  } catch (error) {
+    return NextResponse.json({ error: error.message || 'Failed to create password set token' }, { status: 500 });
   }
 }

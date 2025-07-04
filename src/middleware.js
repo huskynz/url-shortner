@@ -4,8 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 
 export default withAuth(
   async function middleware(req) {
-    const username = req.nextauth.token?.username;
-    if (!username) return false;
+    const userId = req.nextauth.token?.id;
+    if (!userId) return false;
 
     try {
       const supabase = createClient(
@@ -21,8 +21,8 @@ export default withAuth(
 
       const { data } = await supabase
         .from('github_admins')
-        .select('github_username, role')
-        .eq('github_username', username)
+        .select('id, role')
+        .eq('id', userId)
         .single();
 
       if (!data) {
@@ -38,7 +38,7 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => token?.username ? true : false,
+      authorized: ({ token }) => token?.id ? true : false,
     },
   }
 );
