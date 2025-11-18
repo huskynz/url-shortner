@@ -172,59 +172,42 @@ export async function logUserData(location) {
   const environment = process.env.NEXT_PUBLIC_ENV || 'unknown';
   const versionNumber = process.env.NEXT_PUBLIC_Version_Number || 'unknown';
 
-  let userId;
-
-  // Check if this IP already has a user_id assigned
-  const { data: existingUsers, error: fetchError } = await supabase
+  const { data: userMapping, error: mappingError } = await supabase
     .from('user_ip_mapping')
+    .upsert(
+      {
+        ip_address: ip,
+        user_id: uuidv4(),
+      },
+      {
+        onConflict: 'ip_address',
+      }
+    )
     .select('user_id')
-    .eq('ip_address', ip);
+    .single();
 
-  if (fetchError) {
-    console.error('Error fetching IP mapping:', fetchError);
+  if (mappingError || !userMapping) {
+    console.error('Error upserting IP mapping:', mappingError);
     return;
   }
 
-  if (existingUsers.length === 0) {
-    // If no user exists for this IP, create a new UUID
-    userId = uuidv4();
+  const visitRecord = {
+    short_path: location,
+    ip_address: ip,
+    user_agent: userAgent,
+    environment,
+    version_number: versionNumber,
+    user_id: userMapping.user_id,
+    browser: getBrowser(userAgent),
+    os: getOS(userAgent),
+    received_at: new Date().toISOString(),
+  };
 
-    // Insert the new mapping for this IP and user_id
-    const { error: insertError } = await supabase
-      .from('user_ip_mapping')
-      .insert([
-        {
-          ip_address: ip,
-          user_id: userId,
-        }
-      ]);
+  const { error: enqueueError } = await supabase.from('visit_queue').insert([visitRecord]);
 
-    if (insertError) {
-      console.error('Error inserting IP mapping:', insertError);
-      return;
-    }
+  if (enqueueError) {
+    console.error('Error enqueueing visit for async processing:', enqueueError);
   } else {
-    // Use the existing user_id from the IP mapping
-    userId = existingUsers[0].user_id;
-  }
-
-  // Inserting log data into Supabase
-  const { error } = await supabase.from('visits').insert([
-    {
-      short_path: location,
-      ip_address: ip,
-      user_agent: userAgent,
-      environment: environment,
-      version_number: versionNumber,
-      user_id: userId,
-      browser: getBrowser(userAgent),
-      os: getOS(userAgent)
-    }
-  ]);
-
-  if (error) {
-    console.error('Error logging user data to Supabase:', error);
-  } else {
-    console.log('User data logged successfully!');
+    console.log('Visit enqueued for async processing');
   }
 }
