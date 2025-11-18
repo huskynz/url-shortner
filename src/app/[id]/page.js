@@ -5,9 +5,12 @@ export default async function Page(props) {
   const params = props.params;
   const { id } = params;
 
-  await logUserData(id);
+  const urlDataPromise = fetchRedirectUrl(id);
+  logUserData(id).catch((error) => {
+    console.error('Failed to log user data:', error);
+  });
 
-  const urlData = await fetchRedirectUrl(id);
+  const urlData = await urlDataPromise;
 
   // Handle special routes like /deprecated, /invalidlink, /access-denied
   if (!urlData) {
