@@ -27,9 +27,14 @@ This is a NextJS App that uses suppabase to create a URL shortner
 
 ## How to run?
 
-This is coming soon there are still a few things in the project that need to be done to make it easier to run. 
+This is coming soon there are still a few things in the project that need to be done to make it easier to run.
 
 eg. Move all db name calles to env vars, and publish a env examle file
+
+### Optional caching
+
+You can speed up hot redirect paths by providing a `REDIS_URL` environment variable. When set, the redirect handler will cache
+short-path lookups in Redis for a short period so returning visitors avoid a full Supabase round-trip.
 
 ## Screenshots (As of 23/1/2025 on the Dev branch)
 Home Page  - ![image](https://serv.husky.nz/URLSCREEN/Home.PNG)
