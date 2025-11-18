@@ -4,6 +4,8 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 
+import { getRedisClient } from './lib/redis';
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
@@ -15,9 +17,19 @@ export async function fetchRedirectUrl(location) {
     return null;
   }
 
-  // Get client IP
-  const header = await headers();
-  const ip = header.get('x-forwarded-for') || 'Unknown IP';
+  const redis = getRedisClient();
+  const cacheKey = `redirect:${location}`;
+
+  if (redis) {
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (cacheError) {
+      console.error('Error reading from Redis:', cacheError);
+    }
+  }
 
   // Fetch the URL from the database
   const { data: urlData, error } = await supabase
@@ -28,33 +40,65 @@ export async function fetchRedirectUrl(location) {
 
   if (error || !urlData) {
     console.warn(`URL not found: ${location}`);
-    return {
+    const fallback = {
       redirect_url: "/invaildlink",
       deprecated: false,
     };
+    if (redis) {
+      redis.setex(cacheKey, 300, JSON.stringify(fallback)).catch((cacheError) => {
+        console.error('Error writing invalid redirect to Redis:', cacheError);
+      });
+    }
+    return fallback;
   }
 
   // Check if URL is deprecated
   if (urlData.deprecated) {
     console.warn(`Deprecated URL accessed: ${location}`);
-    return {
+    const deprecatedResponse = {
       redirect_url: "/deprecated",
       deprecated: true,
     };
+    if (redis) {
+      redis.setex(cacheKey, 300, JSON.stringify(deprecatedResponse)).catch((cacheError) => {
+        console.error('Error writing deprecated redirect to Redis:', cacheError);
+      });
+    }
+    return deprecatedResponse;
   }
 
   // Check if URL is password protected
   if (urlData.private) {
     console.warn(`Password protected URL accessed: ${location}`);
-    return {
+    const privateResponse = {
       redirect_url: "/password-protected",
       private: true,
       short_path: location,
       custom_message: urlData.custom_message || null
     };
+    if (redis) {
+      redis.setex(cacheKey, 300, JSON.stringify(privateResponse)).catch((cacheError) => {
+        console.error('Error writing private redirect to Redis:', cacheError);
+      });
+    }
+    return privateResponse;
   }
 
-  return urlData;
+  const response = {
+    redirect_url: urlData.redirect_url,
+    deprecated: urlData.deprecated,
+    private: urlData.private,
+    short_path: urlData.short_path,
+    custom_message: urlData.custom_message || null,
+  };
+
+  if (redis) {
+    redis.setex(cacheKey, 300, JSON.stringify(response)).catch((cacheError) => {
+      console.error('Error writing redirect to Redis:', cacheError);
+    });
+  }
+
+  return response;
 }
 
 export async function redirectToUrl(location) {
