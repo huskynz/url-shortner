@@ -1,13 +1,70 @@
-import { createClient } from '@supabase/supabase-js';
 import { getToken } from 'next-auth/jwt';
 import GithubProvider from 'next-auth/providers/github';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
+import supabase, { getCachedData } from './supabase';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const ADMIN_CACHE_TTL = 30 * 1000;
+
+const isNoRowError = (error) => error?.code === 'PGRST116' || error?.message?.includes('No rows');
+
+async function getAdminById(id) {
+  if (!id) return null;
+
+  return getCachedData(
+    `admin-id-${id}`,
+    async () => {
+      const { data, error } = await supabase
+        .from('github_admins')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error && !isNoRowError(error)) throw error;
+      return data ?? null;
+    },
+    ADMIN_CACHE_TTL
+  );
+}
+
+async function getAdminByEmail(email) {
+  if (!email) return null;
+
+  return getCachedData(
+    `admin-email-${email.toLowerCase()}`,
+    async () => {
+      const { data, error } = await supabase
+        .from('github_admins')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (error && !isNoRowError(error)) throw error;
+      return data ?? null;
+    },
+    ADMIN_CACHE_TTL
+  );
+}
+
+async function getAdminByUsername(username) {
+  if (!username) return null;
+
+  const normalized = username.toLowerCase();
+  return getCachedData(
+    `admin-username-${normalized}`,
+    async () => {
+      const { data, error } = await supabase
+        .from('github_admins')
+        .select('*')
+        .ilike('github_username', normalized)
+        .single();
+
+      if (error && !isNoRowError(error)) throw error;
+      return data ?? null;
+    },
+    ADMIN_CACHE_TTL
+  );
+}
 
 export const authOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -20,13 +77,9 @@ export const authOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
-        const { data: user, error } = await supabase
-          .from('github_admins')
-          .select('*')
-          .eq('email', credentials.email)
-          .single();
-        console.log('CREDENTIALS LOGIN:', { email: credentials.email, user, error });
-        if (error || !user || !user.password) return null;
+        const user = await getAdminByEmail(credentials.email);
+        console.log('CREDENTIALS LOGIN:', { email: credentials.email, user });
+        if (!user || !user.password) return null;
         const isValid = await bcrypt.compare(credentials.password, user.password);
         console.log('PASSWORD VALID:', isValid);
         if (!isValid) return null;
@@ -34,6 +87,7 @@ export const authOptions = {
           id: user.id,
           email: user.email,
           role: user.role,
+          isAdmin: true,
           github_id: user.github_id,
           github_username: user.github_username,
           passset: user.passset,
@@ -49,11 +103,7 @@ export const authOptions = {
     async signIn({ user, account, profile }) {
       if (account.provider === 'github') {
         // Legacy behavior: only check for github_username (case-insensitive)
-        const { data: admin } = await supabase
-          .from('github_admins')
-          .select('*')
-          .ilike('github_username', profile.login) // case-insensitive match
-          .single();
+        const admin = await getAdminByUsername(profile.login);
         console.log('GITHUB SIGNIN (LEGACY):', { profile, admin });
         if (admin) {
           // Inject github_id if missing
@@ -68,11 +118,7 @@ export const authOptions = {
         }
         // Optionally: auto-link GitHub to existing email user if emails match
         if (profile.email) {
-          const { data: emailUser } = await supabase
-            .from('github_admins')
-            .select('*')
-            .eq('email', profile.email)
-            .single();
+          const emailUser = await getAdminByEmail(profile.email);
           if (emailUser) {
             await supabase
               .from('github_admins')
@@ -91,6 +137,7 @@ export const authOptions = {
       if (session?.user) {
         session.user.id = token.id;
         session.user.role = token.role;
+        session.user.isAdmin = token.isAdmin ?? !!token.role;
         session.user.github_id = token.github_id;
         session.user.github_username = token.github_username;
         session.user.email = token.email;
@@ -105,6 +152,7 @@ export const authOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.isAdmin = user.isAdmin ?? !!user.role;
         token.github_id = user.github_id;
         token.github_username = user.github_username;
         token.email = user.email;
@@ -113,21 +161,21 @@ export const authOptions = {
       }
       // If GitHub login, fetch user info from DB
       if (account?.provider === 'github' && profile) {
-        const { data: admin } = await supabase
-          .from('github_admins')
-          .select('*')
-          .ilike('github_username', profile.login)
-          .single();
+        const admin = await getAdminByUsername(profile.login);
         if (admin) {
           token.id = admin.id;
           token.role = admin.role;
+          token.isAdmin = true;
           token.github_id = admin.github_id;
           token.github_username = admin.github_username;
           token.email = admin.email;
           token.password_hash = admin.password_hash;
           token.passset = admin.passset;
+        } else {
+          token.isAdmin = false;
         }
       }
+      token.isAdmin = token.isAdmin ?? !!token.role;
       console.log('JWT CALLBACK:', { token, user, account, profile });
       return token;
     },
@@ -197,17 +245,9 @@ export async function verifyAuth(req) {
         console.error('No user id in token');
         return false;
       }
-      // Check if the user is an admin
-      const { data: admin, error: adminError } = await supabase
-        .from('github_admins')
-        .select('role')
-        .eq('id', token.id)
-        .single();
-      if (adminError) {
-        console.error('Error checking admin status:', adminError);
-        return false;
-      }
-      // Return true if the user has an admin role
+      if (token.isAdmin !== undefined) return token.isAdmin;
+      if (token.role !== undefined) return !!token.role;
+      const admin = await getAdminById(token.id);
       const isAdmin = !!admin;
       if (!isAdmin) {
         console.error('User is not an admin:', token.id);
