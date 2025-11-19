@@ -1,6 +1,10 @@
 import { createClient } from 'redis';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+function normalizeRedisUrl(url) {
+  return (url || '').trim().replace(/^['"]|['"]$/g, '');
+}
+
+const REDIS_URL = normalizeRedisUrl(process.env.REDIS_URL) || 'redis://localhost:6379';
 const CIRCUIT_BREAKER_THRESHOLD = Number(process.env.REDIS_CIRCUIT_BREAKER_THRESHOLD || 3);
 const CIRCUIT_BREAKER_RESET_MS = Number(process.env.REDIS_CIRCUIT_BREAKER_RESET_MS || 30_000);
 const KEEP_ALIVE_INTERVAL_MS = Number(process.env.REDIS_KEEP_ALIVE_INTERVAL_MS || 30_000);
