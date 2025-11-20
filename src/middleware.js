@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import supabase, { getCachedData } from './app/lib/supabase';
 
 const ADMIN_CACHE_TTL = 30 * 1000;
+const ADMIN_TABLE = process.env.ADMINS_DB || 'github_admins';
 const isNoRowError = (error) => error?.code === 'PGRST116' || error?.message?.includes('No rows');
 
 async function isAdminFromToken(req) {
@@ -11,15 +12,17 @@ async function isAdminFromToken(req) {
 
   // Prefer admin flag baked into the JWT/session to avoid DB lookups
   if (token.isAdmin !== undefined) return token.isAdmin;
-  if (token.role !== undefined) return !!token.role;
+  if (token.role !== undefined) {
+    return token.role === 'admin' || token.role === 'owner';
+  }
 
   try {
     const admin = await getCachedData(
       `middleware-admin-${token.id}`,
       async () => {
         const { data, error } = await supabase
-          .from('github_admins')
-          .select('id')
+          .from(ADMIN_TABLE)
+          .select('id, role')
           .eq('id', token.id)
           .single();
 
@@ -29,7 +32,7 @@ async function isAdminFromToken(req) {
       ADMIN_CACHE_TTL
     );
 
-    return !!admin;
+    return admin ? (admin.role ? (admin.role === 'admin' || admin.role === 'owner') : true) : false;
   } catch (error) {
     console.error('Cached admin lookup failed:', error);
     return false;

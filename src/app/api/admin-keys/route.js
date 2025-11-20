@@ -1,7 +1,7 @@
 // src/app/api/admin-keys/route.js
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from '@/app/lib/auth';
+import { requireAdminSession } from '@/app/lib/auth';
 import crypto from 'crypto';
 
 const supabase = createClient(
@@ -10,34 +10,32 @@ const supabase = createClient(
 );
 
 export async function GET(req) {
-    // 1. Direct token check
-    const authHeader = req.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
-    
-    const { data: authData } = await supabase
-        .from(process.env.APIKEY_DB)
-        .select('*')
-        .eq('key', token)
-        .single();
+  const authResult = await requireAdminSession(req, { requireOwner: true });
+  if (!authResult.ok) {
+    return NextResponse.json(
+      { error: authResult.error || 'Unauthorized' },
+      { status: authResult.status || 401 }
+    );
+  }
 
-    // 2. Fallback to verifyAuth if direct check fails
-    if (!authData && !await verifyAuth(req)) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  const { data, error } = await supabase
+    .from(process.env.APIKEY_DB)
+    .select('*')
+    .order('created_at', { ascending: false });
 
-    // 3. Return data
-    const { data, error } = await supabase
-        .from(process.env.APIKEY_DB)
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return NextResponse.json(data || []);
+  if (error) {
+    return NextResponse.json({ error: 'Failed to load API keys' }, { status: 500 });
+  }
+  return NextResponse.json(data || []);
 }
 
 export async function POST(req) {
-  if (!await verifyAuth(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireAdminSession(req, { requireOwner: true });
+  if (!authResult.ok) {
+    return NextResponse.json(
+      { error: authResult.error || 'Unauthorized' },
+      { status: authResult.status || 401 }
+    );
   }
 
   try {
