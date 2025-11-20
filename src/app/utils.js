@@ -1,15 +1,10 @@
 // app/redirectUtils.js
-import { createClient } from '@supabase/supabase-js';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 
 import { getRedisClient } from './lib/redis';
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+import supabase from './lib/supabase';
 
 export async function fetchRedirectUrl(location) {
   // Special routes - don't redirect
