@@ -150,14 +150,22 @@ export async function fetchRedirectUrl(location) {
     .eq('short_path', location)
     .single();
 
-  if (error || !urlData) {
+  const fallbackResponse = {
+    redirect_url: '/invaildlink',
+    deprecated: false
+  };
+
+  const isNotFoundError = error && (error.code === 'PGRST116' || error.message?.includes('No rows'));
+
+  if (error && !isNotFoundError) {
+    console.error(`Supabase error fetching redirect for '${location}':`, error);
+    return fallbackResponse;
+  }
+
+  if (!urlData) {
     console.warn(`URL not found: ${location}`);
-    const fallback = {
-      redirect_url: '/invaildlink',
-      deprecated: false
-    };
-    await cacheRedirect(redis, cacheKey, fallback);
-    return fallback;
+    await cacheRedirect(redis, cacheKey, fallbackResponse);
+    return fallbackResponse;
   }
 
   const response = shapeRedirectPayload(urlData, location);
