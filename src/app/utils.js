@@ -52,8 +52,7 @@ function shapeRedirectPayload(urlData, location) {
     return {
       redirect_url: '/password-protected',
       private: true,
-      short_path: location || urlData.short_path,
-      custom_message: urlData.custom_message || null
+      short_path: location || urlData.short_path
     };
   }
 
@@ -61,8 +60,7 @@ function shapeRedirectPayload(urlData, location) {
     redirect_url: urlData.redirect_url,
     deprecated: !!urlData.deprecated,
     private: !!urlData.private,
-    short_path: urlData.short_path,
-    custom_message: urlData.custom_message || null
+    short_path: urlData.short_path
   };
 }
 
@@ -77,7 +75,7 @@ async function preloadRedirectCache(redis) {
 
   const { data: urls, error } = await supabase
     .from(tableName)
-    .select('short_path, redirect_url, deprecated, private, custom_message');
+    .select('short_path, redirect_url, deprecated, private');
 
   if (error) {
     throw error;
@@ -146,7 +144,7 @@ export async function fetchRedirectUrl(location) {
 
   const { data: urlData, error } = await supabase
     .from(tableName)
-    .select('short_path, redirect_url, deprecated, private, custom_message')
+    .select('short_path, redirect_url, deprecated, private')
     .eq('short_path', location)
     .single();
 
