@@ -12,7 +12,7 @@ export async function fetchRedirectUrl(location) {
     return null;
   }
 
-  const redis = getRedisClient();
+  const redis = await getRedisClient();
   const cacheKey = `redirect:${location}`;
 
   if (redis) {
