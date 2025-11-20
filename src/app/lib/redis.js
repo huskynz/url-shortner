@@ -1,14 +1,14 @@
-import { createClient } from 'redis';
+import Redis from 'ioredis';
 
-function normalizeRedisUrl(url) {
-  return (url || '').trim().replace(/^['"]|['"]$/g, '');
-}
-
-const REDIS_URL = normalizeRedisUrl(process.env.REDIS_URL) || 'redis://localhost:6379';
+const REDIS_URL = process.env.REDIS_URL?.trim();
 const CIRCUIT_BREAKER_THRESHOLD = Number(process.env.REDIS_CIRCUIT_BREAKER_THRESHOLD || 3);
 const CIRCUIT_BREAKER_RESET_MS = Number(process.env.REDIS_CIRCUIT_BREAKER_RESET_MS || 30_000);
 const KEEP_ALIVE_INTERVAL_MS = Number(process.env.REDIS_KEEP_ALIVE_INTERVAL_MS || 30_000);
 const POOL_SIZE = Number(process.env.REDIS_POOL_SIZE || 2);
+
+if (!REDIS_URL) {
+  console.warn('[redis] Missing REDIS_URL. Redis client will remain disabled.');
+}
 
 const globalRedis = globalThis.__redisSingleton || {
   pool: [],
@@ -17,7 +17,8 @@ const globalRedis = globalThis.__redisSingleton || {
   keepAliveInterval: null,
   failureCount: 0,
   circuitOpenUntil: 0,
-  lastHealthLog: 0
+  lastHealthLog: 0,
+  authFailed: false
 };
 
 if (!globalThis.__redisSingleton) {
@@ -25,6 +26,10 @@ if (!globalThis.__redisSingleton) {
 }
 
 function isCircuitOpen() {
+  if (globalRedis.authFailed) {
+    return true;
+  }
+
   const now = Date.now();
   if (globalRedis.circuitOpenUntil > now) {
     return true;
@@ -40,6 +45,12 @@ function isCircuitOpen() {
 }
 
 function recordFailure(error) {
+  if (String(error?.message || '').includes('WRONGPASS')) {
+    console.error('[redis] Invalid credentials provided. Disabling Redis client until configuration is fixed.');
+    globalRedis.authFailed = true;
+    return;
+  }
+
   globalRedis.failureCount += 1;
   console.error('[redis] Connection failure', error);
 
@@ -58,12 +69,11 @@ function recordSuccess() {
 }
 
 function buildClient() {
-  const client = createClient({
-    url: REDIS_URL,
-    socket: {
-      keepAlive: KEEP_ALIVE_INTERVAL_MS,
-      reconnectStrategy: (retries) => Math.min(retries * 50, 1000)
-    }
+  const client = new Redis(REDIS_URL, {
+    lazyConnect: true,
+    maxRetriesPerRequest: 1,
+    enableAutoPipelining: true,
+    retryStrategy: (times) => Math.min(times * 50, 1000)
   });
 
   client.on('ready', () => {
@@ -87,7 +97,7 @@ function buildClient() {
 }
 
 async function connectClient(client) {
-  if (client.isOpen) {
+  if (client.status === 'ready' || client.status === 'connecting') {
     return client;
   }
 
@@ -134,6 +144,10 @@ function getOrCreateClient() {
 }
 
 export async function getRedisClient() {
+  if (!REDIS_URL) {
+    return null;
+  }
+
   if (isCircuitOpen()) {
     return null;
   }
