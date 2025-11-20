@@ -89,13 +89,9 @@ function PasswordProtectedContent() {
           <h2 className="mt-6 text-2xl font-bold text-gray-200">
             Password Protected
           </h2>
-          {urlDetails.custom_message ? (
-            <p className="mt-2 text-sm text-gray-400">{urlDetails.custom_message}</p>
-          ) : (
-            <p className="mt-2 text-sm text-gray-400">
-              The URL <span className="font-semibold text-gray-300">/{shortPath}</span> is password protected. Please enter the password to continue.
-            </p>
-          )}
+          <p className="mt-2 text-sm text-gray-400">
+            The URL <span className="font-semibold text-gray-300">/{shortPath}</span> is password protected. Please enter the password to continue.
+          </p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
