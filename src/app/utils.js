@@ -6,92 +6,162 @@ import { v4 as uuidv4 } from 'uuid';
 import { getRedisClient } from './lib/redis';
 import supabase from './lib/supabase';
 
-export async function fetchRedirectUrl(location) {
-  // Special routes - don't redirect
-  if (location === 'invaildlink' || location === 'deprecated' || location === 'urls' || location === 'access-denied' || location === 'password-protected') {
+const REDIRECT_CACHE_TTL = Number(process.env.REDIS_REDIRECT_TTL || 300);
+const REDIRECT_PRELOAD_ENABLED = process.env.REDIS_PRELOAD_ENABLED !== 'false';
+const REDIRECT_PRELOAD_INTERVAL_MS = Number(process.env.REDIS_REDIRECT_PRELOAD_INTERVAL_MS || 300_000);
+const RESERVED_ROUTES = new Set(['invaildlink', 'deprecated', 'urls', 'access-denied', 'password-protected']);
+
+let preloadPromise = null;
+let lastPreloadAt = 0;
+
+function buildCacheKey(location) {
+  return `redirect:${location}`;
+}
+
+async function readFromCache(redis, cacheKey) {
+  try {
+    const cached = await redis.get(cacheKey);
+    return cached ? JSON.parse(cached) : null;
+  } catch (cacheError) {
+    console.error('Error reading from Redis:', cacheError);
     return null;
+  }
+}
+
+async function cacheRedirect(redis, cacheKey, payload) {
+  if (!redis || !payload) return;
+
+  try {
+    await redis.setex(cacheKey, REDIRECT_CACHE_TTL, JSON.stringify(payload));
+  } catch (cacheError) {
+    console.error('Error writing redirect to Redis:', cacheError);
+  }
+}
+
+function shapeRedirectPayload(urlData, location) {
+  if (!urlData) return null;
+
+  if (urlData.deprecated) {
+    return {
+      redirect_url: '/deprecated',
+      deprecated: true
+    };
+  }
+
+  if (urlData.private) {
+    return {
+      redirect_url: '/password-protected',
+      private: true,
+      short_path: location || urlData.short_path,
+      custom_message: urlData.custom_message || null
+    };
+  }
+
+  return {
+    redirect_url: urlData.redirect_url,
+    deprecated: !!urlData.deprecated,
+    private: !!urlData.private,
+    short_path: urlData.short_path,
+    custom_message: urlData.custom_message || null
+  };
+}
+
+async function preloadRedirectCache(redis) {
+  if (!redis || !REDIRECT_PRELOAD_ENABLED) return;
+
+  const tableName = process.env.SUPABASE_DB_NAME;
+  if (!tableName) {
+    console.warn('Cannot preload redirects because SUPABASE_DB_NAME is not configured.');
+    return;
+  }
+
+  const { data: urls, error } = await supabase
+    .from(tableName)
+    .select('short_path, redirect_url, deprecated, private, custom_message');
+
+  if (error) {
+    throw error;
+  }
+
+  if (!urls?.length) return;
+
+  const pipeline = redis.pipeline();
+  urls.forEach((url) => {
+    if (RESERVED_ROUTES.has(url.short_path)) return;
+    const cacheKey = buildCacheKey(url.short_path);
+    const payload = shapeRedirectPayload(url);
+    if (payload) {
+      pipeline.setex(cacheKey, REDIRECT_CACHE_TTL, JSON.stringify(payload));
+    }
+  });
+
+  await pipeline.exec();
+}
+
+function triggerPreload(redis) {
+  if (!redis || !REDIRECT_PRELOAD_ENABLED) return null;
+  const now = Date.now();
+
+  if (preloadPromise) return preloadPromise;
+  if (now - lastPreloadAt < REDIRECT_PRELOAD_INTERVAL_MS) return null;
+
+  preloadPromise = preloadRedirectCache(redis)
+    .catch((error) => {
+      console.error('Error preloading redirect cache:', error);
+    })
+    .finally(() => {
+      lastPreloadAt = Date.now();
+      preloadPromise = null;
+    });
+
+  return preloadPromise;
+}
+
+export async function fetchRedirectUrl(location) {
+  if (RESERVED_ROUTES.has(location)) {
+    return null; // Special routes stay within the app
   }
 
   const redis = await getRedisClient();
-  const cacheKey = `redirect:${location}`;
+  const cacheKey = buildCacheKey(location);
 
   if (redis) {
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-    } catch (cacheError) {
-      console.error('Error reading from Redis:', cacheError);
+    triggerPreload(redis);
+    const cached = await readFromCache(redis, cacheKey);
+    if (cached) {
+      return cached;
     }
   }
 
-  // Fetch the URL from the database
+  const tableName = process.env.SUPABASE_DB_NAME;
+  if (!tableName) {
+    console.error('SUPABASE_DB_NAME is not configured; cannot look up redirects.');
+    const fallback = {
+      redirect_url: '/invaildlink',
+      deprecated: false
+    };
+    await cacheRedirect(redis, cacheKey, fallback);
+    return fallback;
+  }
+
   const { data: urlData, error } = await supabase
-    .from(process.env.SUPABASE_DB_NAME)
-    .select('*')
+    .from(tableName)
+    .select('short_path, redirect_url, deprecated, private, custom_message')
     .eq('short_path', location)
     .single();
 
   if (error || !urlData) {
     console.warn(`URL not found: ${location}`);
     const fallback = {
-      redirect_url: "/invaildlink",
-      deprecated: false,
+      redirect_url: '/invaildlink',
+      deprecated: false
     };
-    if (redis) {
-      redis.setex(cacheKey, 300, JSON.stringify(fallback)).catch((cacheError) => {
-        console.error('Error writing invalid redirect to Redis:', cacheError);
-      });
-    }
+    await cacheRedirect(redis, cacheKey, fallback);
     return fallback;
   }
 
-  // Check if URL is deprecated
-  if (urlData.deprecated) {
-    console.warn(`Deprecated URL accessed: ${location}`);
-    const deprecatedResponse = {
-      redirect_url: "/deprecated",
-      deprecated: true,
-    };
-    if (redis) {
-      redis.setex(cacheKey, 300, JSON.stringify(deprecatedResponse)).catch((cacheError) => {
-        console.error('Error writing deprecated redirect to Redis:', cacheError);
-      });
-    }
-    return deprecatedResponse;
-  }
-
-  // Check if URL is password protected
-  if (urlData.private) {
-    console.warn(`Password protected URL accessed: ${location}`);
-    const privateResponse = {
-      redirect_url: "/password-protected",
-      private: true,
-      short_path: location,
-      custom_message: urlData.custom_message || null
-    };
-    if (redis) {
-      redis.setex(cacheKey, 300, JSON.stringify(privateResponse)).catch((cacheError) => {
-        console.error('Error writing private redirect to Redis:', cacheError);
-      });
-    }
-    return privateResponse;
-  }
-
-  const response = {
-    redirect_url: urlData.redirect_url,
-    deprecated: urlData.deprecated,
-    private: urlData.private,
-    short_path: urlData.short_path,
-    custom_message: urlData.custom_message || null,
-  };
-
-  if (redis) {
-    redis.setex(cacheKey, 300, JSON.stringify(response)).catch((cacheError) => {
-      console.error('Error writing redirect to Redis:', cacheError);
-    });
-  }
+  const response = shapeRedirectPayload(urlData, location);
+  await cacheRedirect(redis, cacheKey, response);
 
   return response;
 }
