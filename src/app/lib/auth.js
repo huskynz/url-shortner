@@ -1,10 +1,10 @@
 import { getToken } from 'next-auth/jwt';
-import GithubProvider from 'next-auth/providers/github';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import supabase, { getCachedData } from './supabase';
 
 const ADMIN_CACHE_TTL = 30 * 1000;
+const ADMIN_TABLE = process.env.ADMINS_DB || 'github_admins';
 
 const isNoRowError = (error) => error?.code === 'PGRST116' || error?.message?.includes('No rows');
 
@@ -15,7 +15,7 @@ async function getAdminById(id) {
     `admin-id-${id}`,
     async () => {
       const { data, error } = await supabase
-        .from('github_admins')
+        .from(ADMIN_TABLE)
         .select('*')
         .eq('id', id)
         .single();
@@ -34,7 +34,7 @@ async function getAdminByEmail(email) {
     `admin-email-${email.toLowerCase()}`,
     async () => {
       const { data, error } = await supabase
-        .from('github_admins')
+        .from(ADMIN_TABLE)
         .select('*')
         .eq('email', email)
         .single();
@@ -54,7 +54,7 @@ async function getAdminByUsername(username) {
     `admin-username-${normalized}`,
     async () => {
       const { data, error } = await supabase
-        .from('github_admins')
+        .from(ADMIN_TABLE)
         .select('*')
         .ilike('github_username', normalized)
         .single();
@@ -78,105 +78,49 @@ export const authOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
         const user = await getAdminByEmail(credentials.email);
-        console.log('CREDENTIALS LOGIN:', { email: credentials.email, user });
-        if (!user || !user.password) return null;
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        console.log('PASSWORD VALID:', isValid);
+        if (!user) return null;
+        const passwordHash = user.password_hash || user.password;
+        if (!passwordHash) return null;
+        const isValid = await bcrypt.compare(credentials.password, passwordHash);
         if (!isValid) return null;
+        const role = user.role || (user.isAdmin ? 'admin' : null);
         return {
           id: user.id,
           email: user.email,
-          role: user.role,
+          role,
           isAdmin: true,
-          github_id: user.github_id,
-          github_username: user.github_username,
           passset: user.passset,
         };
       },
     }),
-    GithubProvider({
-      clientId: process.env.GITHUB_ID,
-      clientSecret: process.env.GITHUB_SECRET,
-    }),
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (account.provider === 'github') {
-        // Legacy behavior: only check for github_username (case-insensitive)
-        const admin = await getAdminByUsername(profile.login);
-        console.log('GITHUB SIGNIN (LEGACY):', { profile, admin });
-        if (admin) {
-          // Inject github_id if missing
-          if (!admin.github_id && profile.id) {
-            await supabase
-              .from('github_admins')
-              .update({ github_id: String(profile.id) })
-              .eq('github_username', admin.github_username);
-            console.log('Injected github_id for', admin.github_username, '->', profile.id);
-          }
-          return true;
-        }
-        // Optionally: auto-link GitHub to existing email user if emails match
-        if (profile.email) {
-          const emailUser = await getAdminByEmail(profile.email);
-          if (emailUser) {
-            await supabase
-              .from('github_admins')
-              .update({ github_username: profile.login, github_id: String(profile.id) })
-              .eq('id', emailUser.id);
-            console.log('Linked github_username and injected github_id for', profile.email, '->', profile.login, profile.id);
-            return true;
-          }
-        }
-        return false;
-      }
       // CredentialsProvider: user is already validated
       return !!user;
     },
     async session({ session, token, user }) {
       if (session?.user) {
         session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.isAdmin = token.isAdmin ?? !!token.role;
-        session.user.github_id = token.github_id;
-        session.user.github_username = token.github_username;
+        const role = token.role || (token.isAdmin ? 'admin' : null);
+        session.user.role = role;
+        session.user.isAdmin = token.isAdmin ?? (role ? role === 'admin' || role === 'owner' : false);
         session.user.email = token.email;
-        session.user.password_hash = token.password_hash;
         session.user.passset = token.passset ?? false;
       }
-      console.log('SESSION CALLBACK:', { token, session });
       return session;
     },
     async jwt({ token, user, account, profile }) {
       // On login, merge user info into token
       if (user) {
+        const role = user.role || (user.isAdmin ? 'admin' : null);
         token.id = user.id;
-        token.role = user.role;
-        token.isAdmin = user.isAdmin ?? !!user.role;
-        token.github_id = user.github_id;
-        token.github_username = user.github_username;
+        token.role = role;
+        token.isAdmin = user.isAdmin ?? (role ? role === 'admin' || role === 'owner' : false);
         token.email = user.email;
-        token.password_hash = user.password_hash;
         token.passset = user.passset;
       }
-      // If GitHub login, fetch user info from DB
-      if (account?.provider === 'github' && profile) {
-        const admin = await getAdminByUsername(profile.login);
-        if (admin) {
-          token.id = admin.id;
-          token.role = admin.role;
-          token.isAdmin = true;
-          token.github_id = admin.github_id;
-          token.github_username = admin.github_username;
-          token.email = admin.email;
-          token.password_hash = admin.password_hash;
-          token.passset = admin.passset;
-        } else {
-          token.isAdmin = false;
-        }
-      }
-      token.isAdmin = token.isAdmin ?? !!token.role;
-      console.log('JWT CALLBACK:', { token, user, account, profile });
+      token.isAdmin = token.isAdmin ?? (token.role ? token.role === 'admin' || token.role === 'owner' : false);
       return token;
     },
   },
@@ -246,9 +190,11 @@ export async function verifyAuth(req) {
         return false;
       }
       if (token.isAdmin !== undefined) return token.isAdmin;
-      if (token.role !== undefined) return !!token.role;
+      if (token.role !== undefined) {
+        return token.role === 'admin' || token.role === 'owner';
+      }
       const admin = await getAdminById(token.id);
-      const isAdmin = !!admin;
+      const isAdmin = !admin ? false : (admin.role ? (admin.role === 'admin' || admin.role === 'owner') : true);
       if (!isAdmin) {
         console.error('User is not an admin:', token.id);
       }
@@ -260,5 +206,32 @@ export async function verifyAuth(req) {
   } catch (error) {
     console.error('Error in verifyAuth:', error);
     return false;
+  }
+}
+
+export async function requireAdminSession(req, { requireOwner = false } = {}) {
+  try {
+    const token = await getToken({ req });
+    if (!token?.id) {
+      return { ok: false, status: 401, error: 'Unauthorized' };
+    }
+
+    let role = token.role || (token.isAdmin ? 'admin' : null);
+    if (!role) {
+      const admin = await getAdminById(token.id);
+      role = admin?.role || (admin ? 'admin' : null);
+    }
+    const isAdminRole = role === 'admin' || role === 'owner';
+    if (!isAdminRole) {
+      return { ok: false, status: 403, error: 'Forbidden' };
+    }
+    if (requireOwner && role !== 'owner') {
+      return { ok: false, status: 403, error: 'Owner role required' };
+    }
+
+    return { ok: true, token, role };
+  } catch (error) {
+    console.error('requireAdminSession failed:', error);
+    return { ok: false, status: 500, error: 'Internal error' };
   }
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from '@/app/lib/auth';
+import { requireAdminSession } from '@/app/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 
 const supabase = createClient(
@@ -10,14 +10,13 @@ const supabase = createClient(
 
 export async function POST(request) {
   try {
-    if (!await verifyAuth(request)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await requireAdminSession(request, { requireOwner: true });
+    if (!authResult.ok) {
+      return NextResponse.json(
+        { error: authResult.error || 'Unauthorized' },
+        { status: authResult.status || 401 }
+      );
     }
-    // You may need to import getToken if you use it for role checks
-    // const token = await getToken({ req: request });
-    // if (!token || (token.role !== 'owner' && token.role !== 'admin')) {
-    //   return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    // }
     const { email } = await request.json();
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });

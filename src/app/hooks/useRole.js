@@ -12,18 +12,24 @@ export function useRole() {
         setRole(session.user.role);
         return;
       }
-      if (session?.user?.id || session?.user?.email || session?.user?.github_id) {
-        const res = await fetch('/api/admin-management');
-        const admins = await res.json();
-        let userAdmin = null;
-        if (session.user.id) {
-          userAdmin = admins.find(admin => admin.id === session.user.id);
-        } else if (session.user.email) {
-          userAdmin = admins.find(admin => admin.email === session.user.email);
-        } else if (session.user.github_id) {
-          userAdmin = admins.find(admin => admin.github_id === session.user.github_id);
+      if (session?.user?.id || session?.user?.email) {
+        try {
+          const res = await fetch('/api/admin-management');
+          if (!res.ok) {
+            setRole(null);
+            return;
+          }
+          const admins = await res.json();
+          let userAdmin = null;
+          if (session.user.id) {
+            userAdmin = admins.find(admin => admin.id === session.user.id);
+          } else if (session.user.email) {
+            userAdmin = admins.find(admin => admin.email === session.user.email);
+          }
+          setRole(userAdmin?.role || null);
+        } catch {
+          setRole(null);
         }
-        setRole(userAdmin?.role || null);
       }
     }
     fetchRole();
