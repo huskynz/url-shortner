@@ -18,6 +18,45 @@ function buildCacheKey(location) {
   return `redirect:${location}`;
 }
 
+async function invalidateCache(shortPath) {
+  const redis = await getRedisClient();
+  if (!redis) return;
+
+  try {
+    const cacheKey = buildCacheKey(shortPath);
+    await redis.del(cacheKey);
+    console.log(`Cache invalidated for: ${shortPath}`);
+  } catch (error) {
+    console.error('Error invalidating cache:', error);
+  }
+}
+
+export async function clearAllRedirectCache() {
+  const redis = await getRedisClient();
+  if (!redis) return { success: false, message: 'Redis not available' };
+
+  try {
+    const pattern = 'redirect:*';
+    const stream = redis.scanStream({ match: pattern, count: 100 });
+    const keysToDelete = [];
+
+    for await (const keys of stream) {
+      keysToDelete.push(...keys);
+    }
+
+    if (keysToDelete.length > 0) {
+      await redis.del(...keysToDelete);
+      console.log(`Cleared ${keysToDelete.length} redirect cache entries`);
+      return { success: true, count: keysToDelete.length };
+    }
+
+    return { success: true, count: 0 };
+  } catch (error) {
+    console.error('Error clearing redirect cache:', error);
+    return { success: false, message: error.message };
+  }
+}
+
 async function readFromCache(redis, cacheKey) {
   try {
     const cached = await redis.get(cacheKey);
@@ -32,7 +71,13 @@ async function cacheRedirect(redis, cacheKey, payload) {
   if (!redis || !payload) return;
 
   try {
-    await redis.setex(cacheKey, REDIRECT_CACHE_TTL, JSON.stringify(payload));
+    if (REDIRECT_CACHE_TTL > 0) {
+      // Set with expiration if TTL is configured
+      await redis.setex(cacheKey, REDIRECT_CACHE_TTL, JSON.stringify(payload));
+    } else {
+      // Set without expiration (persistent) if TTL is 0 or negative
+      await redis.set(cacheKey, JSON.stringify(payload));
+    }
   } catch (cacheError) {
     console.error('Error writing redirect to Redis:', cacheError);
   }
@@ -89,7 +134,11 @@ async function preloadRedirectCache(redis) {
     const cacheKey = buildCacheKey(url.short_path);
     const payload = shapeRedirectPayload(url);
     if (payload) {
-      pipeline.setex(cacheKey, REDIRECT_CACHE_TTL, JSON.stringify(payload));
+      if (REDIRECT_CACHE_TTL > 0) {
+        pipeline.setex(cacheKey, REDIRECT_CACHE_TTL, JSON.stringify(payload));
+      } else {
+        pipeline.set(cacheKey, JSON.stringify(payload));
+      }
     }
   });
 
@@ -185,8 +234,14 @@ export async function addUrl(shortPath, redirectUrl) {
   const { error } = await supabase
     .from(process.env.SUPABASE_DB_NAME)
     .insert({ short_path: shortPath, redirect_url: redirectUrl });
-  if (error) console.error("Error adding URL:", error);
-  return !error;
+  if (error) {
+    console.error("Error adding URL:", error);
+    return false;
+  }
+  
+  // Invalidate cache to ensure fresh data on next request
+  await invalidateCache(shortPath);
+  return true;
 }
 
 export async function deleteUrl(shortPath) {
@@ -194,8 +249,14 @@ export async function deleteUrl(shortPath) {
     .from(process.env.SUPABASE_DB_NAME)
     .delete()
     .eq("short_path", shortPath);
-  if (error) console.error("Error deleting URL:", error);
-  return !error;
+  if (error) {
+    console.error("Error deleting URL:", error);
+    return false;
+  }
+  
+  // Invalidate cache when URL is deleted
+  await invalidateCache(shortPath);
+  return true;
 }
 
 // Funtion to allow /urls to fetch all URLs from Supabase
