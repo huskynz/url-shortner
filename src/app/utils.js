@@ -1,60 +1,175 @@
 // app/redirectUtils.js
-import { createClient } from '@supabase/supabase-js';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+import { getRedisClient } from './lib/redis';
+import supabase from './lib/supabase';
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const REDIRECT_CACHE_TTL = Number(process.env.REDIS_REDIRECT_TTL || 300);
+const REDIRECT_PRELOAD_ENABLED = process.env.REDIS_PRELOAD_ENABLED !== 'false';
+const REDIRECT_PRELOAD_INTERVAL_MS = Number(process.env.REDIS_REDIRECT_PRELOAD_INTERVAL_MS || 300_000);
+const RESERVED_ROUTES = new Set(['invaildlink', 'deprecated', 'urls', 'access-denied', 'password-protected']);
 
-export async function fetchRedirectUrl(location) {
-  // Special routes - don't redirect
-  if (location === 'invaildlink' || location === 'deprecated' || location === 'urls' || location === 'access-denied' || location === 'password-protected') {
+let preloadPromise = null;
+let lastPreloadAt = 0;
+
+function buildCacheKey(location) {
+  return `redirect:${location}`;
+}
+
+async function readFromCache(redis, cacheKey) {
+  try {
+    const cached = await redis.get(cacheKey);
+    return cached ? JSON.parse(cached) : null;
+  } catch (cacheError) {
+    console.error('Error reading from Redis:', cacheError);
     return null;
   }
+}
 
-  // Get client IP
-  const header = await headers();
-  const ip = header.get('x-forwarded-for') || 'Unknown IP';
+async function cacheRedirect(redis, cacheKey, payload) {
+  if (!redis || !payload) return;
 
-  // Fetch the URL from the database
+  try {
+    await redis.setex(cacheKey, REDIRECT_CACHE_TTL, JSON.stringify(payload));
+  } catch (cacheError) {
+    console.error('Error writing redirect to Redis:', cacheError);
+  }
+}
+
+function shapeRedirectPayload(urlData, location) {
+  if (!urlData) return null;
+
+  if (urlData.deprecated) {
+    return {
+      redirect_url: '/deprecated',
+      deprecated: true
+    };
+  }
+
+  if (urlData.private) {
+    return {
+      redirect_url: '/password-protected',
+      private: true,
+      short_path: location || urlData.short_path
+    };
+  }
+
+  return {
+    redirect_url: urlData.redirect_url,
+    deprecated: !!urlData.deprecated,
+    private: !!urlData.private,
+    short_path: urlData.short_path
+  };
+}
+
+async function preloadRedirectCache(redis) {
+  if (!redis || !REDIRECT_PRELOAD_ENABLED) return;
+
+  const tableName = process.env.SUPABASE_DB_NAME;
+  if (!tableName) {
+    console.warn('Cannot preload redirects because SUPABASE_DB_NAME is not configured.');
+    return;
+  }
+
+  const { data: urls, error } = await supabase
+    .from(tableName)
+    .select('short_path, redirect_url, deprecated, private');
+
+  if (error) {
+    throw error;
+  }
+
+  if (!urls?.length) return;
+
+  const pipeline = redis.pipeline();
+  urls.forEach((url) => {
+    if (RESERVED_ROUTES.has(url.short_path)) return;
+    const cacheKey = buildCacheKey(url.short_path);
+    const payload = shapeRedirectPayload(url);
+    if (payload) {
+      pipeline.setex(cacheKey, REDIRECT_CACHE_TTL, JSON.stringify(payload));
+    }
+  });
+
+  await pipeline.exec();
+}
+
+function triggerPreload(redis) {
+  if (!redis || !REDIRECT_PRELOAD_ENABLED) return null;
+  const now = Date.now();
+
+  if (preloadPromise) return preloadPromise;
+  if (now - lastPreloadAt < REDIRECT_PRELOAD_INTERVAL_MS) return null;
+
+  preloadPromise = preloadRedirectCache(redis)
+    .catch((error) => {
+      console.error('Error preloading redirect cache:', error);
+    })
+    .finally(() => {
+      lastPreloadAt = Date.now();
+      preloadPromise = null;
+    });
+
+  return preloadPromise;
+}
+
+export async function fetchRedirectUrl(location) {
+  if (RESERVED_ROUTES.has(location)) {
+    return null; // Special routes stay within the app
+  }
+
+  const redis = await getRedisClient();
+  const cacheKey = buildCacheKey(location);
+
+  if (redis) {
+    triggerPreload(redis);
+    const cached = await readFromCache(redis, cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const tableName = process.env.SUPABASE_DB_NAME;
+  if (!tableName) {
+    console.error('SUPABASE_DB_NAME is not configured; cannot look up redirects.');
+    const fallback = {
+      redirect_url: '/invaildlink',
+      deprecated: false
+    };
+    await cacheRedirect(redis, cacheKey, fallback);
+    return fallback;
+  }
+
   const { data: urlData, error } = await supabase
-    .from(process.env.SUPABASE_DB_NAME)
-    .select('*')
+    .from(tableName)
+    .select('short_path, redirect_url, deprecated, private')
     .eq('short_path', location)
     .single();
 
-  if (error || !urlData) {
+  const fallbackResponse = {
+    redirect_url: '/invaildlink',
+    deprecated: false
+  };
+
+  const isNotFoundError = error && (error.code === 'PGRST116' || error.message?.includes('No rows'));
+
+  if (error && !isNotFoundError) {
+    console.error(`Supabase error fetching redirect for '${location}':`, error);
+    return fallbackResponse;
+  }
+
+  if (!urlData) {
     console.warn(`URL not found: ${location}`);
-    return {
-      redirect_url: "/invaildlink",
-      deprecated: false,
-    };
+    await cacheRedirect(redis, cacheKey, fallbackResponse);
+    return fallbackResponse;
   }
 
-  // Check if URL is deprecated
-  if (urlData.deprecated) {
-    console.warn(`Deprecated URL accessed: ${location}`);
-    return {
-      redirect_url: "/deprecated",
-      deprecated: true,
-    };
-  }
+  const response = shapeRedirectPayload(urlData, location);
+  await cacheRedirect(redis, cacheKey, response);
 
-  // Check if URL is password protected
-  if (urlData.private) {
-    console.warn(`Password protected URL accessed: ${location}`);
-    return {
-      redirect_url: "/password-protected",
-      private: true,
-      short_path: location,
-      custom_message: urlData.custom_message || null
-    };
-  }
-
-  return urlData;
+  return response;
 }
 
 export async function redirectToUrl(location) {
@@ -128,59 +243,42 @@ export async function logUserData(location) {
   const environment = process.env.NEXT_PUBLIC_ENV || 'unknown';
   const versionNumber = process.env.NEXT_PUBLIC_Version_Number || 'unknown';
 
-  let userId;
-
-  // Check if this IP already has a user_id assigned
-  const { data: existingUsers, error: fetchError } = await supabase
+  const { data: userMapping, error: mappingError } = await supabase
     .from('user_ip_mapping')
+    .upsert(
+      {
+        ip_address: ip,
+        user_id: uuidv4(),
+      },
+      {
+        onConflict: 'ip_address',
+      }
+    )
     .select('user_id')
-    .eq('ip_address', ip);
+    .single();
 
-  if (fetchError) {
-    console.error('Error fetching IP mapping:', fetchError);
+  if (mappingError || !userMapping) {
+    console.error('Error upserting IP mapping:', mappingError);
     return;
   }
 
-  if (existingUsers.length === 0) {
-    // If no user exists for this IP, create a new UUID
-    userId = uuidv4();
+  const visitRecord = {
+    short_path: location,
+    ip_address: ip,
+    user_agent: userAgent,
+    environment,
+    version_number: versionNumber,
+    user_id: userMapping.user_id,
+    browser: getBrowser(userAgent),
+    os: getOS(userAgent),
+    received_at: new Date().toISOString(),
+  };
 
-    // Insert the new mapping for this IP and user_id
-    const { error: insertError } = await supabase
-      .from('user_ip_mapping')
-      .insert([
-        {
-          ip_address: ip,
-          user_id: userId,
-        }
-      ]);
+  const { error: enqueueError } = await supabase.from('visit_queue').insert([visitRecord]);
 
-    if (insertError) {
-      console.error('Error inserting IP mapping:', insertError);
-      return;
-    }
+  if (enqueueError) {
+    console.error('Error enqueueing visit for async processing:', enqueueError);
   } else {
-    // Use the existing user_id from the IP mapping
-    userId = existingUsers[0].user_id;
-  }
-
-  // Inserting log data into Supabase
-  const { error } = await supabase.from('visits').insert([
-    {
-      short_path: location,
-      ip_address: ip,
-      user_agent: userAgent,
-      environment: environment,
-      version_number: versionNumber,
-      user_id: userId,
-      browser: getBrowser(userAgent),
-      os: getOS(userAgent)
-    }
-  ]);
-
-  if (error) {
-    console.error('Error logging user data to Supabase:', error);
-  } else {
-    console.log('User data logged successfully!');
+    console.log('Visit enqueued for async processing');
   }
 }

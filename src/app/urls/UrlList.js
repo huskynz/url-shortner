@@ -212,7 +212,7 @@ export default function UrlList({ initialUrls }) {
                         </div>
                         
                         <button 
-                            onClick={() => signIn()} 
+                            onClick={() => signIn(undefined, { callbackUrl: '/admin/dashboard' })} 
                             className="bg-green-500/10 text-green-500 px-4 py-2 rounded hover:bg-green-500/20 text-sm transition-colors"
                         >
                             Sign In

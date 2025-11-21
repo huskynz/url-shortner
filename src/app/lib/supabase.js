@@ -18,7 +18,8 @@ const supabase = createClient(
 
 // Cache for frequently accessed data
 const cache = new Map();
-const CACHE_TTL = 60 * 1000; // 1 minute cache TTL
+// Keep TTL short to minimize stale admin/role data while still reducing chatter
+const CACHE_TTL = 30 * 1000; // 30 second cache TTL
 
 // Helper function to get cached data or fetch fresh data
 export async function getCachedData(key, fetchFn, ttl = CACHE_TTL) {
