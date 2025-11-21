@@ -48,38 +48,57 @@ function aggregateVisitsOverTime(rows) {
 }
 
 async function fetchVisitAnalyticsRows(timeRange, cutoffIso) {
-  const rows = [];
-  let offset = 0;
+  try {
+    const rows = [];
+    let offset = 0;
+    let retries = 0;
+    const maxRetries = 2;
 
-  while (rows.length < MAX_ANALYTICS_ROWS) {
-    const rangeEnd = Math.min(offset + ANALYTICS_BATCH_SIZE - 1, MAX_ANALYTICS_ROWS - 1);
-    let query = supabase
-      .from('visits')
-      .select('short_path, browser, os, visited_at')
-      .order('visited_at', { ascending: false })
-      .range(offset, rangeEnd);
+    while (rows.length < MAX_ANALYTICS_ROWS && retries <= maxRetries) {
+      const rangeEnd = Math.min(offset + ANALYTICS_BATCH_SIZE - 1, MAX_ANALYTICS_ROWS - 1);
+      let query = supabase
+        .from('visits')
+        .select('short_path, browser, os, visited_at')
+        .order('visited_at', { ascending: false })
+        .range(offset, rangeEnd);
 
-    query = applyTimeRange(query, timeRange, cutoffIso);
+      query = applyTimeRange(query, timeRange, cutoffIso);
 
-    const { data, error } = await query;
-    if (error) {
-      throw error;
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error(`Error fetching visit analytics batch at offset ${offset}:`, error);
+        retries++;
+        if (retries > maxRetries) {
+          // Return what we have so far instead of failing completely
+          console.warn(`Max retries reached, returning ${rows.length} rows`);
+          break;
+        }
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 100 * retries));
+        continue;
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
+      rows.push(...data);
+
+      if (data.length < ANALYTICS_BATCH_SIZE) {
+        break;
+      }
+
+      offset += ANALYTICS_BATCH_SIZE;
+      retries = 0; // Reset retries on successful fetch
     }
 
-    if (!data || data.length === 0) {
-      break;
-    }
-
-    rows.push(...data);
-
-    if (data.length < ANALYTICS_BATCH_SIZE) {
-      break;
-    }
-
-    offset += ANALYTICS_BATCH_SIZE;
+    return rows;
+  } catch (err) {
+    console.error('Fatal error in fetchVisitAnalyticsRows:', err);
+    // Return empty array as fallback rather than crashing the whole endpoint
+    return [];
   }
-
-  return rows;
 }
 
 export async function GET(req) {
@@ -105,7 +124,7 @@ export async function GET(req) {
         recentVisitsResult,
         visitRows,
         urlsResult,
-      ] = await Promise.all([
+      ] = await Promise.allSettled([
         supabase
           .from(process.env.SUPABASE_DB_NAME)
           .select('*', { count: 'exact', head: true }),
@@ -129,20 +148,24 @@ export async function GET(req) {
           .select('deprecated')
       ]);
 
-      const { count: totalUrls, error: urlError } = totalUrlsResult;
-      const { count: totalVisits, error: visitError } = totalVisitsResult;
-      const { data: recentVisits, error: recentError } = recentVisitsResult;
-      const { data: urls, error: urlsDataError } = urlsResult;
+      // Extract results with fallbacks
+      const totalUrls = totalUrlsResult.status === 'fulfilled' ? totalUrlsResult.value.count || 0 : 0;
+      const totalVisits = totalVisitsResult.status === 'fulfilled' ? totalVisitsResult.value.count || 0 : 0;
+      const recentVisits = recentVisitsResult.status === 'fulfilled' ? recentVisitsResult.value.data || [] : [];
+      const visitRowsData = visitRows.status === 'fulfilled' ? visitRows.value || [] : [];
+      const urls = urlsResult.status === 'fulfilled' ? urlsResult.value.data || [] : [];
 
-      if (urlError) throw urlError;
-      if (visitError) throw visitError;
-      if (recentError) throw recentError;
-      if (urlsDataError) throw urlsDataError;
+      // Log any failures for debugging
+      if (totalUrlsResult.status === 'rejected') console.error('Failed to fetch total URLs:', totalUrlsResult.reason);
+      if (totalVisitsResult.status === 'rejected') console.error('Failed to fetch total visits:', totalVisitsResult.reason);
+      if (recentVisitsResult.status === 'rejected') console.error('Failed to fetch recent visits:', recentVisitsResult.reason);
+      if (visitRows.status === 'rejected') console.error('Failed to fetch visit analytics rows:', visitRows.reason);
+      if (urlsResult.status === 'rejected') console.error('Failed to fetch URLs:', urlsResult.reason);
 
-      const visitStats = aggregateCounts(visitRows, 'short_path', { resultKey: 'short_path' });
-      const normalizedBrowsers = aggregateCounts(visitRows, 'browser');
-      const normalizedOs = aggregateCounts(visitRows, 'os');
-      const visitsOverTime = aggregateVisitsOverTime(visitRows);
+      const visitStats = aggregateCounts(visitRowsData, 'short_path', { resultKey: 'short_path' });
+      const normalizedBrowsers = aggregateCounts(visitRowsData, 'browser');
+      const normalizedOs = aggregateCounts(visitRowsData, 'os');
+      const visitsOverTime = aggregateVisitsOverTime(visitRowsData);
 
       return {
         totalUrls,
@@ -151,7 +174,7 @@ export async function GET(req) {
         deprecatedUrls: urls?.filter(u => u.deprecated)?.length || 0,
         averageClicks: totalVisits / (totalUrls || 1),
         visitStats,
-        recentVisits: recentVisits || [],
+        recentVisits: recentVisits,
         browserDistribution: normalizedBrowsers,
         osDistribution: normalizedOs,
         visitsOverTime,
@@ -160,9 +183,20 @@ export async function GET(req) {
 
     return NextResponse.json(analyticsData);
   } catch (error) {
-    console.error('Error in GET /api/admin-analytics:', error);
+    console.error('Error in GET /api/admin-analytics:', {
+      message: error.message,
+      details: error.stack,
+      hint: error.hint || '',
+      code: error.code || ''
+    });
     return NextResponse.json(
-      { error: 'Failed to fetch analytics data' },
+      { 
+        error: 'Failed to fetch analytics data',
+        message: error.message,
+        details: error.stack,
+        hint: error.hint || '',
+        code: error.code || ''
+      },
       { status: 500 }
     );
   }
