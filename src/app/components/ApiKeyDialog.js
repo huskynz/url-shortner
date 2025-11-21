@@ -133,7 +133,7 @@ export default function ApiKeyDialog({ isOpen, onClose }) {
             <div className="p-4 bg-green-500/10 border border-green-500/20 rounded">
               <p className="text-green-500 text-sm mb-2">New API Key Created:</p>
               <code className="block p-2 bg-black rounded text-sm text-gray-300 break-all">{newKey}</code>
-              <p className="text-xs text-gray-400 mt-2">Make sure to copy this key now. You won't be able to see it again!</p>
+              <p className="text-xs text-gray-400 mt-2">Make sure to copy this key now. You won&apos;t be able to see it again!</p>
             </div>
           )}
 
