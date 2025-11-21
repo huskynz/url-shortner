@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { validateRequest } from '@/app/lib/authMiddleware';
 import supabase, { getCachedData } from '@/app/lib/supabase';
 
+const MAX_ANALYTICS_ROWS = parseInt(process.env.ADMIN_ANALYTICS_MAX_ROWS || '5000', 10);
+const ANALYTICS_BATCH_SIZE = parseInt(process.env.ADMIN_ANALYTICS_BATCH_SIZE || '1000', 10);
+
 function applyTimeRange(query, timeRange, cutoffIso) {
   if (timeRange > 0) {
     return query.gte('visited_at', cutoffIso);
@@ -44,6 +47,41 @@ function aggregateVisitsOverTime(rows) {
     .sort((a, b) => (a.date > b.date ? 1 : -1));
 }
 
+async function fetchVisitAnalyticsRows(timeRange, cutoffIso) {
+  const rows = [];
+  let offset = 0;
+
+  while (rows.length < MAX_ANALYTICS_ROWS) {
+    const rangeEnd = Math.min(offset + ANALYTICS_BATCH_SIZE - 1, MAX_ANALYTICS_ROWS - 1);
+    let query = supabase
+      .from('visits')
+      .select('short_path, browser, os, visited_at')
+      .order('visited_at', { ascending: false })
+      .range(offset, rangeEnd);
+
+    query = applyTimeRange(query, timeRange, cutoffIso);
+
+    const { data, error } = await query;
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    rows.push(...data);
+
+    if (data.length < ANALYTICS_BATCH_SIZE) {
+      break;
+    }
+
+    offset += ANALYTICS_BATCH_SIZE;
+  }
+
+  return rows;
+}
+
 export async function GET(req) {
   try {
     if (!await validateRequest(req)) {
@@ -62,11 +100,11 @@ export async function GET(req) {
       const cutoffIso = cutoffDate.toISOString();
 
       const [
-        { count: totalUrls, error: urlError },
-        { count: totalVisits, error: visitError },
-        { data: visitDetails, error: visitDetailsError },
-        { data: recentVisits, error: recentError },
-        { data: urls, error: urlsDataError }
+        totalUrlsResult,
+        totalVisitsResult,
+        recentVisitsResult,
+        visitRows,
+        urlsResult,
       ] = await Promise.all([
         supabase
           .from(process.env.SUPABASE_DB_NAME)
@@ -85,25 +123,22 @@ export async function GET(req) {
           timeRange,
           cutoffIso
         ),
-        applyTimeRange(
-          supabase
-            .from('visits')
-            .select('short_path, browser, os, visited_at'),
-          timeRange,
-          cutoffIso
-        ),
+        fetchVisitAnalyticsRows(timeRange, cutoffIso),
         supabase
           .from(process.env.SUPABASE_DB_NAME)
           .select('deprecated')
       ]);
 
+      const { count: totalUrls, error: urlError } = totalUrlsResult;
+      const { count: totalVisits, error: visitError } = totalVisitsResult;
+      const { data: recentVisits, error: recentError } = recentVisitsResult;
+      const { data: urls, error: urlsDataError } = urlsResult;
+
       if (urlError) throw urlError;
       if (visitError) throw visitError;
-      if (visitDetailsError) throw visitDetailsError;
       if (recentError) throw recentError;
       if (urlsDataError) throw urlsDataError;
 
-      const visitRows = visitDetails || [];
       const visitStats = aggregateCounts(visitRows, 'short_path', { resultKey: 'short_path' });
       const normalizedBrowsers = aggregateCounts(visitRows, 'browser');
       const normalizedOs = aggregateCounts(visitRows, 'os');
