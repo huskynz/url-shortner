@@ -504,8 +504,8 @@ export default function UrlList({ initialUrls }) {
             <footer className="mt-12 border-t border-gray-800 bg-[#0f0f0f] py-4">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center text-gray-400">
-                        <p>© 2025 HuskyNZ. Licensed under the MIT open source lisense <a className='text-white underline hover:text-gray-300 transition-colors' href='https://raw.githubusercontent.com/huskynz/url-shortner/refs/heads/master/LICENSE'>here</a> | You can view this sites source code <a href='/ghm' className='text-white underline hover:text-gray-300 transition-colors'>here</a></p>
-                        <p className="mt-2">By using this site you agree to HuskyNZ's <a href='https://legal.husky.nz/toc' className='text-white underline hover:text-gray-300 transition-colors'>Terms of use</a> and <a href='https://legal.husky.nz/Privacy-Policy' className='text-white underline hover:text-gray-300 transition-colors'>Privacy policy</a></p>
+                        <p>© 2025 HuskyNZ. Licensed under the MIT open source lisense <a className='text-white underline hover:text-gray-300 transition-colors' href='https://raw.githubusercontent.com/huskynz/url-shortner/refs/heads/master/LICENSE'>here</a> | You can view this site&apos;s source code <a href='/ghm' className='text-white underline hover:text-gray-300 transition-colors'>here</a></p>
+                        <p className="mt-2">By using this site you agree to HuskyNZ&apos;s <a href='https://legal.husky.nz/toc' className='text-white underline hover:text-gray-300 transition-colors'>Terms of use</a> and <a href='https://legal.husky.nz/Privacy-Policy' className='text-white underline hover:text-gray-300 transition-colors'>Privacy policy</a></p>
                     </div>
                 </div>
             </footer>

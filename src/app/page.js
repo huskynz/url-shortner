@@ -45,7 +45,7 @@ const Page = () => {
       buttonClass: "bg-gray-800 hover:bg-gray-700"
     },
     {
-      name: "This sites code",
+      name: "This site's code",
       icon: "https://serv.husky.nz/urlicons/generic-code.svg",
       url: "/gurl",
       buttonClass: "bg-[#24292e] hover:bg-[#1b1f23]"
@@ -115,8 +115,8 @@ return (
 
       {/* Footer */}
       <footer className="w-full text-center text-gray-500 p-4">
-        <p>© 2025 HuskyNZ. Licensed under the MIT open source license <a className='text-white underline' href='https://raw.githubusercontent.com/huskynz/url-shortner/refs/heads/master/LICENSE'>here</a> | You can view this sites source code <a href='/gurl' className='text-white underline'>here</a></p>
-        <p>By using this site you agree to HuskyNZ's <a href='https://legal.husky.nz/toc' className='text-white underline'>Terms of use</a> and <a href='https://legal.husky.nz/Privacy-Policy' className='text-white underline'>Privacy policy</a></p>
+  <p>© 2025 HuskyNZ. Licensed under the MIT open source license <a className='text-white underline' href='https://raw.githubusercontent.com/huskynz/url-shortner/refs/heads/master/LICENSE'>here</a> | You can view this site&apos;s source code <a href='/gurl' className='text-white underline'>here</a></p>
+  <p>By using this site you agree to HuskyNZ&apos;s <a href='https://legal.husky.nz/toc' className='text-white underline'>Terms of use</a> and <a href='https://legal.husky.nz/Privacy-Policy' className='text-white underline'>Privacy policy</a></p>
       </footer>
     </div>
 );
