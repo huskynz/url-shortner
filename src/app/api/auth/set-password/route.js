@@ -6,6 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+const ADMIN_TABLE = process.env.ADMINS_DB || 'github_admins';
 
 export async function POST(request) {
   try {
@@ -32,13 +33,33 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     console.log('MATCHING ON:', matchColumn, matchValue);
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const { data: admin, error: fetchError } = await supabase
+      .from(ADMIN_TABLE)
+      .select('*')
+      .eq(matchColumn, matchValue)
+      .single();
+
+    if (fetchError || !admin) {
+      console.error('Set password admin lookup failed:', fetchError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
     // Set passset to true
+    const updatePayload = { email: normalizedEmail, passset: true };
+    if (Object.prototype.hasOwnProperty.call(admin, 'password_hash')) {
+      updatePayload.password_hash = hashedPassword;
+    }
+    if (Object.prototype.hasOwnProperty.call(admin, 'password')) {
+      updatePayload.password = hashedPassword;
+    }
+
     const { error: updateError } = await supabase
-      .from('github_admins')
-      .update({ email, password: hashedPassword, passset: true })
-      .eq(matchColumn, matchValue);
+      .from(ADMIN_TABLE)
+      .update(updatePayload)
+      .eq('id', admin.id);
     if (updateError) throw updateError;
     return NextResponse.json({ success: true });
   } catch (error) {

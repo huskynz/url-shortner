@@ -9,10 +9,10 @@ export default function UrlPageClient({ initialUrls }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (session?.user?.username === 'Husky-Devel') {
-      router.push('/admin');
+    if (status === 'authenticated') {
+      router.push('/admin/dashboard');
     }
-  }, [session, router]);
+  }, [status, router]);
 
   if (status === 'loading') {
     return <div>Loading...</div>;
