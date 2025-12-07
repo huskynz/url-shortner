@@ -1,6 +1,6 @@
 {
   "name": "hunz-urlshort",
-  "version": "5",
+  "version": "5.1",
   "private": true,
   "packageManager": "pnpm@10.6.5",
   "scripts": {
