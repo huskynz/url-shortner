@@ -1,0 +1,180 @@
+@page "/admin/dashboard"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = AuthConstants.AdminSessionPolicy)]
+@inject AnalyticsService Analytics
+@inject IOptions<UrlShortenerOptions> Options
+@using System.Security.Claims
+
+<PageTitle>Analytics overview</PageTitle>
+
+<AdminShell>
+    <div class="space-y-4">
+        <header class="border border-[#303030] bg-[#151515] p-3 space-y-2 rounded-sm">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <div class="flex items-center gap-3">
+                    <span class="text-[#dcdcdc]">⚙</span>
+                    <div>
+                        <p class="text-xs uppercase tracking-[0.18em] text-[#8a8a8a]">Admin pulse</p>
+                        <h1 class="text-xl font-semibold text-[#f0f0f0]">Analytics overview</h1>
+                    </div>
+                </div>
+                <div class="flex flex-col items-end gap-1 text-sm text-[#b5b5b5]">
+                    <span>Role: @(_role ?? "viewer")</span>
+                    <span>Session: @(_email ?? "unknown")</span>
+                    <span class="text-xs text-slate-500">@Options.Value.Environment</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <StatBlock Label="Total visits" Value="@((_analytics?.TotalVisits ?? 0).ToString("N0"))" Detail="@($"{VisitDelta:+#;-#;0} vs last")" Icon="📊" />
+            <StatBlock Label="Active URLs" Value="@((_analytics?.ActiveUrls ?? 0).ToString())" Detail="@($"{_analytics?.DeprecatedUrls ?? 0} deprecated")" Icon="✓" />
+            <StatBlock Label="Recent hits" Value="@((_analytics?.RecentVisits.Count ?? 0).ToString())" Detail="Last captured window" Icon="🔗" />
+            <StatBlock Label="Window" Value="@TrendLabel" Detail="Traffic range" Icon="⏱" />
+        </div>
+
+        <section class="border border-[#303030] bg-[#111111] p-4 text-[#dcdcdc] space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <p class="text-[11px] uppercase tracking-[0.16em] text-[#8a8a8a] mb-1">Analytics</p>
+                    <h2 class="text-lg font-semibold">Traffic snapshot</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    @foreach (var range in Ranges)
+                    {
+                        <button @onclick="() => SetRange(range.Key)"
+                                class="px-3 py-1.5 border text-sm @(_timeRange == range.Key ? "border-[#4a4a4a] bg-[#1f1f1f] text-[#f0f0f0]" : "border-[#2d2d2d] bg-[#0f0f0f] text-[#c4c4c4]")">
+                            @range.Label
+                        </button>
+                    }
+                    <button @onclick="Load" class="px-3 py-1.5 border border-[#3a3a3a] bg-[#1b1b1b] text-sm text-[#f0f0f0] hover:bg-[#242424] transition">
+                        @(_loading ? "Syncing..." : "Refresh")
+                    </button>
+                </div>
+            </div>
+
+            @if (_loading)
+            {
+                <p class="text-slate-400 text-sm">Syncing analytics...</p>
+            }
+            else if (_analytics is not null)
+            {
+                <div class="grid gap-3 lg:grid-cols-3">
+                    <MiniTile Title="Visits" Value="@(_analytics.TotalVisits.ToString())" Detail="@($"Avg {_analytics.AverageClicks:0.0} / link")" />
+                    <MiniTile Title="Active URLs" Value="@(_analytics.ActiveUrls.ToString())" Detail="@($"{_analytics.DeprecatedUrls} deprecated")" />
+                    <MiniTile Title="Recent hits" Value="@(_analytics.RecentVisits.Count.ToString())" Detail="Last 10 captured" />
+                </div>
+                <div class="grid gap-3 lg:grid-cols-2">
+                    <div>
+                        <p class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-2">Top performers</p>
+                        <div class="space-y-2">
+                            @foreach (var row in _analytics.VisitStats.Take(5))
+                            {
+                                <div class="flex items-center justify-between gap-3 border border-[#2d2d2d] bg-[#121212] px-3 py-2">
+                                    <div class="flex items-center gap-2"><span class="text-blue-300">🔗</span><span class="text-white font-medium">/@row.ShortPath</span></div>
+                                    <div class="flex items-center gap-2 text-slate-300">📊 @row.Count</div>
+                                </div>
+                            }
+                            @if (_analytics.VisitStats.Count == 0)
+                            {
+                                <p class="text-slate-400 text-sm">Send traffic to see analytics.</p>
+                            }
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-2">Recent traffic</p>
+                        <div class="space-y-2">
+                            @foreach (var row in _analytics.RecentVisits)
+                            {
+                                <div class="flex items-center justify-between gap-3 border border-[#2d2d2d] bg-[#121212] px-3 py-2">
+                                    <div>
+                                        <p class="text-white font-medium flex items-center gap-2">/@(row.ShortPath ?? "unknown")
+                                            @if (!string.IsNullOrEmpty(row.Environment)) { <Badge Tone="neutral">@row.Environment</Badge> }
+                                        </p>
+                                        <p class="text-xs text-slate-400">@(row.VisitedAt?.ToString("g"))</p>
+                                    </div>
+                                    <div class="text-right text-xs text-slate-400">
+                                        <p>@(row.IpAddress ?? "anon")</p>
+                                        @if (!string.IsNullOrEmpty(row.VersionNumber)) { <p class="text-slate-500">v@row.VersionNumber</p> }
+                                    </div>
+                                </div>
+                            }
+                            @if (_analytics.RecentVisits.Count == 0)
+                            {
+                                <p class="text-slate-400 text-sm">Quiet right now. Waiting for new visits.</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <p class="text-slate-400 text-sm">@(_error ?? "No analytics yet.")</p>
+            }
+        </section>
+    </div>
+</AdminShell>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private record Range(int Key, string Label);
+    private static readonly Range[] Ranges = { new(0, "All time"), new(7, "7d"), new(30, "30d"), new(90, "90d") };
+
+    private AnalyticsResult? _analytics;
+    private int _timeRange;
+    private bool _loading = true;
+    private string? _error;
+    private string? _role;
+    private string? _email;
+
+    private string TrendLabel => Ranges.FirstOrDefault(r => r.Key == _timeRange)?.Label ?? "All time";
+
+    private int VisitDelta
+    {
+        get
+        {
+            var pts = _analytics?.VisitsOverTime;
+            if (pts is null || pts.Count == 0) return 0;
+            var current = pts[^1].Count;
+            var previous = pts.Count >= 2 ? pts[^2].Count : 0;
+            return current - previous;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            _role = state.User.FindFirstValue(ClaimTypes.Role);
+            _email = state.User.FindFirstValue(ClaimTypes.Email);
+        }
+        await Load();
+    }
+
+    private async Task SetRange(int range)
+    {
+        _timeRange = range;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            _analytics = await Analytics.GetAnalyticsAsync(_timeRange);
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

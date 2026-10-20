@@ -1,0 +1,35 @@
+@page "/deprecated"
+@inject RedirectService Redirect
+
+<PageTitle>Deprecated URL</PageTitle>
+
+<div class="pt-16 flex flex-col items-center">
+    <img src="https://serv.husky.nz/logo/default180.png" width="60" height="60" class="mb-6" alt="Logo" />
+    <div class="max-w-xl text-center">
+        <h1 class="text-3xl font-bold mb-4">Deprecated URL</h1>
+        <div class="border border-red-500/20 bg-red-500/5 rounded-lg p-5 mb-5">
+            <p class="text-gray-300 mb-2">
+                @(string.IsNullOrEmpty(_displayPath)
+                    ? "This shortened URL has been deprecated"
+                    : $"The URL /{_displayPath} has been deprecated") and is no longer in use.
+            </p>
+            <p class="text-gray-400 text-sm">Please check the URLs page for an updated link.</p>
+        </div>
+        <div class="flex gap-4 justify-center">
+            <a href="/urls" class="text-blue-500 hover:underline">View all URLs</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "dpl")] public string? Dpl { get; set; }
+
+    private string _displayPath = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var urls = await Redirect.FetchDisplayUrlsAsync();
+        var match = urls.FirstOrDefault(u => u.Deprecated && u.ShortPath == (Dpl ?? string.Empty));
+        _displayPath = match?.ShortPath ?? string.Empty;
+    }
+}

@@ -1,0 +1,348 @@
+@page "/admin/users"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = AuthConstants.AdminSessionPolicy)]
+@inject AdminService AdminSvc
+@using System.Security.Claims
+
+<PageTitle>User management</PageTitle>
+
+<AdminShell>
+    <div class="space-y-6">
+        <div class="flex items-center justify-between gap-2">
+            <div class="flex flex-col gap-1">
+                <h1 class="text-xl font-semibold text-white flex items-center gap-2">🔒 User management</h1>
+                <p class="text-sm text-slate-400">Manage admin/owner accounts for RBAC.</p>
+            </div>
+            <button @onclick="Load" disabled="@_loading" class="inline-flex items-center gap-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] px-3 py-2 text-sm text-[#e6e6e6] hover:bg-[#222] transition disabled:opacity-50">Refresh</button>
+        </div>
+
+        <div class="grid gap-6 @(_isOwner ? "lg:grid-cols-[360px_1fr] xl:grid-cols-[400px_1fr]" : "")">
+            @if (_isOwner)
+            {
+                <div class="space-y-4">
+                    <div class="border border-[#303030] bg-[#111111] p-4 rounded-sm space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-lg font-semibold text-white">Invite user</h2>
+                            <Badge Tone="info">Owner only</Badge>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="space-y-1">
+                                <label class="text-xs uppercase tracking-[0.16em] text-slate-500">Email</label>
+                                <input type="email" @bind="_newEmail" class="w-full rounded-sm border border-[#3a3a3a] bg-[#0f0f0f] px-3 py-2 text-sm text-[#e6e6e6] focus:border-[#626262] outline-none" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs uppercase tracking-[0.16em] text-slate-500">Temporary password</label>
+                                <div class="flex gap-2">
+                                    <input type="text" @bind="_newPassword" class="w-full rounded-sm border border-[#3a3a3a] bg-[#0f0f0f] px-3 py-2 text-sm text-[#e6e6e6] focus:border-[#626262] outline-none" />
+                                    <button type="button" @onclick="() => _newPassword = RandomString(12)" class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-xs text-[#f0f0f0] hover:bg-[#222] transition">Generate</button>
+                                </div>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs uppercase tracking-[0.16em] text-slate-500">Role</label>
+                                <div class="inline-flex items-center gap-1 rounded-sm border border-[#2d2d2d] bg-[#0f0f0f] p-1">
+                                    @foreach (var r in Roles)
+                                    {
+                                        <button type="button" @onclick="() => _newRole = r"
+                                                class="px-2 py-1 rounded-sm text-xs capitalize transition @(_newRole == r ? "bg-[#1f1f1f] border border-[#4a4a4a] text-white" : "border border-transparent text-slate-300 hover:bg-[#171717]")">@r</button>
+                                    }
+                                </div>
+                            </div>
+                            @if (_actionError is not null)
+                            {
+                                <p class="text-sm text-rose-300">@_actionError</p>
+                            }
+                            <div class="flex items-center justify-end">
+                                <button @onclick="Create" disabled="@_acting" class="px-4 py-2 rounded-sm bg-[#2c2c2c] border border-[#4a4a4a] text-[#f0f0f0] font-medium hover:bg-[#333] transition disabled:opacity-50">
+                                    @(_acting ? "Creating..." : "Create user")
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="space-y-4">
+                <div class="border border-[#303030] bg-[#111111] p-4 rounded-sm space-y-3">
+                    <div class="flex flex-col gap-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div class="space-y-1">
+                                <h2 class="text-lg font-semibold text-white">Users</h2>
+                                <p class="text-sm text-slate-400">Search, filter, and update access quickly.</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="relative flex-1 min-w-[220px] max-w-sm">
+                                <input @bind="_search" @bind:event="oninput" placeholder="Search by email or role"
+                                       class="w-full pl-3 pr-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#0f0f0f] text-sm text-[#e6e6e6] focus:border-[#626262] outline-none" />
+                            </div>
+                            <div class="inline-flex items-center gap-1 rounded-sm border border-[#2d2d2d] bg-[#0f0f0f] p-1">
+                                @foreach (var r in RoleFilters)
+                                {
+                                    <button @onclick="() => _roleFilter = r"
+                                            class="px-2 py-1 rounded-sm text-xs capitalize transition @(_roleFilter == r ? "bg-[#1f1f1f] border border-[#4a4a4a] text-white" : "border border-transparent text-slate-300 hover:bg-[#171717]")">@r</button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (_loading)
+                    {
+                        <p class="text-slate-400 text-sm">Loading users...</p>
+                    }
+                    else if (_error is not null)
+                    {
+                        <p class="text-rose-300 text-sm">@_error</p>
+                    }
+                    else if (Filtered().Count == 0)
+                    {
+                        <p class="text-slate-400 text-sm">No users.</p>
+                    }
+                    else
+                    {
+                        <div class="overflow-hidden rounded-sm border border-[#2d2d2d] bg-[#161616]">
+                            <div class="divide-y divide-[#2d2d2d]">
+                                @foreach (var admin in Filtered())
+                                {
+                                    var currentRole = admin.Role ?? "viewer";
+                                    var staged = _roleDrafts.TryGetValue(admin.Email!, out var d) ? d : currentRole;
+                                    <div class="grid md:grid-cols-[1.8fr_1fr_1.4fr] gap-3 px-3 py-3 items-center">
+                                        <div class="space-y-1">
+                                            <p class="text-white font-semibold break-all">@admin.Email</p>
+                                            <p class="text-xs text-slate-500 capitalize">Current: @currentRole</p>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <Badge Tone="@(currentRole == "owner" ? "info" : currentRole == "admin" ? "success" : "neutral")">@currentRole</Badge>
+                                            @if (_isOwner)
+                                            {
+                                                <div class="flex items-center gap-1">
+                                                    @foreach (var r in Roles)
+                                                    {
+                                                        <button @onclick="() => StageRole(admin.Email!, r)" disabled="@_acting"
+                                                                class="px-2 py-1 rounded-sm border text-xs capitalize transition @(staged == r ? "border-[#4a4a4a] bg-[#1f1f1f] text-white" : "border-[#2d2d2d] bg-[#0f0f0f] text-slate-300 hover:bg-[#171717]")">@r</button>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                        <div class="flex flex-wrap items-center justify-start md:justify-end gap-2">
+                                            @if (_isOwner)
+                                            {
+                                                <button @onclick="() => UpdateRole(admin.Email!, staged)" disabled="@(staged == currentRole || _acting)"
+                                                        class="inline-flex items-center gap-2 px-3 py-2 rounded-sm border border-[#4a4a4a] bg-[#1f1f1f] text-xs text-[#e6e6e6] hover:bg-[#262626] transition disabled:opacity-50">
+                                                    @(staged != currentRole ? "Update role" : "Up to date")
+                                                </button>
+                                                <button @onclick="() => OpenReset(admin.Email!)" disabled="@_acting"
+                                                        class="inline-flex items-center gap-2 px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-xs text-[#e6e6e6] hover:bg-[#222] transition disabled:opacity-50">Reset password</button>
+                                                <button @onclick="() => _pendingDelete = admin.Email" disabled="@_acting"
+                                                        class="px-3 py-2 rounded-sm border border-rose-500/40 text-rose-200 hover:bg-rose-500/10 disabled:opacity-60 text-xs">Remove</button>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_pendingDelete is not null)
+    {
+        <ModalDialog OnClose="() => _pendingDelete = null">
+            <div class="space-y-3">
+                <p class="text-lg font-semibold text-white">Remove @_pendingDelete?</p>
+                <p class="text-sm text-slate-300">This user will lose access immediately.</p>
+                <div class="flex justify-end gap-2">
+                    <button @onclick="() => _pendingDelete = null" class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-sm text-[#e6e6e6] hover:bg-[#242424] transition">Cancel</button>
+                    <button @onclick="ConfirmDelete" disabled="@_acting" class="px-3 py-2 rounded-sm border border-rose-500/60 bg-rose-500/10 text-sm text-rose-100 hover:bg-rose-500/20 transition disabled:opacity-60">Delete</button>
+                </div>
+            </div>
+        </ModalDialog>
+    }
+
+    @if (_resetOpen)
+    {
+        <ModalDialog OnClose="() => _resetOpen = false">
+            <div class="space-y-3">
+                <div class="space-y-1">
+                    <p class="text-lg font-semibold text-white">Reset password</p>
+                    <p class="text-sm text-slate-300 break-all">@_resetEmail</p>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs uppercase tracking-[0.16em] text-slate-500">Temporary password</label>
+                    <div class="flex gap-2">
+                        <input @bind="_resetPassword" class="w-full rounded-sm border border-[#3a3a3a] bg-[#0f0f0f] px-3 py-2 text-sm text-[#e6e6e6] focus:border-[#626262] outline-none" />
+                        <button type="button" @onclick="() => _resetPassword = RandomString(14)" class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-xs text-[#f0f0f0] hover:bg-[#222] transition">Shuffle</button>
+                    </div>
+                </div>
+                @if (_resetError is not null)
+                {
+                    <p class="text-sm text-rose-300">@_resetError</p>
+                }
+                <div class="flex justify-end gap-2">
+                    <button @onclick="() => _resetOpen = false" class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-sm text-[#e6e6e6] hover:bg-[#242424] transition">Cancel</button>
+                    <button @onclick="ConfirmReset" disabled="@_resetSaving" class="inline-flex items-center gap-2 px-3 py-2 rounded-sm border border-[#4a4a4a] bg-[#1f1f1f] text-sm text-[#e6e6e6] hover:bg-[#262626] transition disabled:opacity-50">@(_resetSaving ? "Saving..." : "Save")</button>
+                </div>
+            </div>
+        </ModalDialog>
+    }
+
+    @if (_notice is not null)
+    {
+        <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] px-3 py-2 text-sm text-[#e6e6e6] shadow-lg">
+            <span>@_notice</span>
+            <button @onclick="() => _notice = null" class="text-xs text-slate-400 hover:text-white transition">Close</button>
+        </div>
+    }
+</AdminShell>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private static readonly string[] Roles = { "viewer", "admin", "owner" };
+    private static readonly string[] RoleFilters = { "all", "viewer", "admin", "owner" };
+    private const string PwAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+
+    private List<Admin> _admins = new();
+    private bool _isOwner;
+    private bool _loading = true;
+    private bool _acting;
+    private string? _error;
+    private string? _actionError;
+    private string? _notice;
+    private string _search = string.Empty;
+    private string _roleFilter = "all";
+    private Dictionary<string, string> _roleDrafts = new();
+
+    private string _newEmail = string.Empty;
+    private string _newPassword = string.Empty;
+    private string _newRole = "admin";
+
+    private string? _pendingDelete;
+    private bool _resetOpen;
+    private string _resetEmail = string.Empty;
+    private string _resetPassword = string.Empty;
+    private string? _resetError;
+    private bool _resetSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            _isOwner = state.User.FindFirstValue(ClaimTypes.Role) == "owner";
+        }
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            _admins = await AdminSvc.ListAdminsAsync();
+            _roleDrafts.Clear();
+            _error = null;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private List<Admin> Filtered()
+    {
+        var term = _search.Trim().ToLowerInvariant();
+        var scoped = _roleFilter == "all" ? _admins : _admins.Where(a => (a.Role ?? "viewer") == _roleFilter);
+        var searched = string.IsNullOrEmpty(term)
+            ? scoped
+            : scoped.Where(a => (a.Email ?? "").ToLowerInvariant().Contains(term) || (a.Role ?? "viewer").ToLowerInvariant().Contains(term));
+        var priority = new Dictionary<string, int> { ["owner"] = 0, ["admin"] = 1, ["viewer"] = 2 };
+        return searched
+            .OrderBy(a => priority.GetValueOrDefault(a.Role ?? "viewer", 99))
+            .ThenBy(a => a.Email, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private void StageRole(string email, string role) => _roleDrafts[email] = role;
+
+    private static string RandomString(int len)
+    {
+        var rng = Random.Shared;
+        return new string(Enumerable.Range(0, len).Select(_ => PwAlphabet[rng.Next(PwAlphabet.Length)]).ToArray());
+    }
+
+    private async Task Create()
+    {
+        _actionError = null;
+        if (string.IsNullOrEmpty(_newEmail) || string.IsNullOrEmpty(_newPassword))
+        {
+            _actionError = "Email and password are required.";
+            return;
+        }
+        _acting = true;
+        try
+        {
+            var result = await AdminSvc.SignupAsync(_newEmail, _newPassword, _newRole);
+            if (!result.Ok) { _actionError = result.Error; return; }
+            _notice = "User created";
+            _newEmail = _newPassword = string.Empty;
+            _newRole = "admin";
+            await Load();
+        }
+        finally { _acting = false; }
+    }
+
+    private async Task UpdateRole(string email, string role)
+    {
+        _acting = true;
+        try
+        {
+            var result = await AdminSvc.UpdateRoleAsync(email, role);
+            if (!result.Ok) { _actionError = result.Error; return; }
+            _notice = $"Updated {email}";
+            await Load();
+        }
+        finally { _acting = false; }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        var target = _pendingDelete;
+        _pendingDelete = null;
+        if (target is null) return;
+        _acting = true;
+        try
+        {
+            await AdminSvc.RemoveAdminAsync(target);
+            _notice = $"Removed {target}";
+            await Load();
+        }
+        finally { _acting = false; }
+    }
+
+    private void OpenReset(string email)
+    {
+        _resetEmail = email;
+        _resetPassword = RandomString(14);
+        _resetError = null;
+        _resetOpen = true;
+    }
+
+    private async Task ConfirmReset()
+    {
+        if (string.IsNullOrEmpty(_resetEmail) || string.IsNullOrEmpty(_resetPassword))
+        {
+            _resetError = "Email and password are required";
+            return;
+        }
+        _resetSaving = true;
+        try
+        {
+            var result = await AdminSvc.ResetPasswordAsync(_resetEmail, _resetPassword);
+            if (!result.Ok) { _resetError = result.Error; return; }
+            _notice = $"Password reset for {_resetEmail}";
+            _resetOpen = false;
+        }
+        finally { _resetSaving = false; }
+    }
+}

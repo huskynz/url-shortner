@@ -1,0 +1,11 @@
+<div class="border border-[#303030] bg-[#111111] p-3">
+    <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">@Title</p>
+    <p class="text-2xl font-semibold text-[#f0f0f0] mt-1">@Value</p>
+    <p class="text-xs text-slate-400 mt-1">@Detail</p>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public string? Detail { get; set; }
+}

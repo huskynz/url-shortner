@@ -1,0 +1,24 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# .NET build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+
+# Rider / VS
+.idea/
+.vs/
+
+# Local env files
+.env
+.env*.local
+
+# Data Protection key rings (if persisted locally)
+keys/
+
+# misc
+.DS_Store
+*.pem

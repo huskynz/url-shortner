@@ -1,0 +1,71 @@
+@page "/admin/stats"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = AuthConstants.AdminSessionPolicy)]
+@inject AnalyticsService Analytics
+
+<PageTitle>Stats</PageTitle>
+
+<AdminShell>
+    <div class="space-y-4">
+        <section class="border border-[#303030] bg-[#111111] p-4 text-[#dcdcdc] space-y-3">
+            <div>
+                <p class="text-[11px] uppercase tracking-[0.16em] text-[#8a8a8a] mb-1">Total @((_analytics?.TotalVisits ?? 0).ToString("N0")) visits</p>
+                <h2 class="text-lg font-semibold">Distributions</h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Distribution Title="Browsers" Data="_analytics?.BrowserDistribution" Total="_analytics?.TotalVisits ?? 0" Color="bg-blue-500" />
+                <Distribution Title="Operating systems" Data="_analytics?.OsDistribution" Total="_analytics?.TotalVisits ?? 0" Color="bg-emerald-500" />
+            </div>
+        </section>
+
+        <section class="border border-[#303030] bg-[#111111] p-4 text-[#dcdcdc] space-y-3">
+            <div>
+                <p class="text-[11px] uppercase tracking-[0.16em] text-[#8a8a8a] mb-1">Breakdown</p>
+                <h2 class="text-lg font-semibold">Top performers</h2>
+            </div>
+            @if (_loading)
+            {
+                <p class="text-slate-400 text-sm">Loading...</p>
+            }
+            else if ((_analytics?.VisitStats.Count ?? 0) > 0)
+            {
+                <div class="space-y-2">
+                    @foreach (var row in _analytics!.VisitStats.Take(10))
+                    {
+                        <div class="flex items-center justify-between gap-3 border border-[#2d2d2d] bg-[#121212] px-3 py-2">
+                            <div class="flex items-center gap-2"><span class="text-blue-300">🔗</span><span class="text-white font-medium">/@row.ShortPath</span></div>
+                            <div class="flex items-center gap-2 text-slate-300">📊 @row.Count</div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-slate-400 text-sm">@(_error ?? "No data yet.")</p>
+            }
+        </section>
+    </div>
+</AdminShell>
+
+@code {
+    private AnalyticsResult? _analytics;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _analytics = await Analytics.GetAnalyticsAsync(0);
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

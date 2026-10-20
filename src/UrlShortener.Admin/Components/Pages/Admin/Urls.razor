@@ -1,0 +1,275 @@
+@page "/admin/urls"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = AuthConstants.AdminSessionPolicy)]
+@inject UrlAdminService UrlAdmin
+@inject IJSRuntime JS
+
+<PageTitle>Links</PageTitle>
+
+<AdminShell>
+    <div class="space-y-4">
+        <div class="flex items-center justify-between gap-2">
+            <div>
+                <h1 class="text-xl font-semibold text-white flex items-center gap-2">🔗 Links</h1>
+                <p class="text-sm text-slate-400">Create, browse, and copy short links.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <input class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#0f0f0f] text-sm text-[#e6e6e6] focus:border-[#626262] outline-none"
+                       placeholder="Search links" @bind="_search" @bind:event="oninput" />
+                <select class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#0f0f0f] text-sm text-[#e6e6e6] outline-none" @bind="_statusFilter">
+                    <option value="all">All</option>
+                    <option value="active">Active</option>
+                    <option value="deprecated">Deprecated</option>
+                </select>
+                <select class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#0f0f0f] text-sm text-[#e6e6e6] outline-none" @bind="_privacyFilter">
+                    <option value="all">Any privacy</option>
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                </select>
+                <button @onclick="Load" class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-sm text-[#e6e6e6] hover:bg-[#242424] transition">
+                    @(_loading ? "Refreshing..." : "Refresh")
+                </button>
+            </div>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-3">
+            <div class="border border-[#303030] bg-[#111111] p-3 rounded-sm"><p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Total links</p><p class="text-2xl font-semibold text-[#f0f0f0] mt-1">@_urls.Count</p></div>
+            <div class="border border-[#303030] bg-[#111111] p-3 rounded-sm"><p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Active</p><p class="text-2xl font-semibold text-[#f0f0f0] mt-1">@_urls.Count(u => !u.Deprecated)</p></div>
+            <div class="border border-[#303030] bg-[#111111] p-3 rounded-sm"><p class="text-[11px] uppercase tracking-[0.18em] text-slate-500">Private</p><p class="text-2xl font-semibold text-[#f0f0f0] mt-1">@_urls.Count(u => u.IsPrivate)</p></div>
+        </div>
+
+        <div class="border border-[#303030] bg-[#111111] p-4 rounded-sm space-y-3">
+            <h2 class="text-lg font-semibold text-white flex items-center gap-2">🔒 Launch a short link</h2>
+            <div class="grid gap-3 md:grid-cols-2">
+                <div>
+                    <label class="text-xs uppercase tracking-[0.16em] text-slate-500">Short path</label>
+                    <input class="w-full rounded-sm border border-[#3a3a3a] bg-[#0f0f0f] px-3 py-2 text-sm text-[#e6e6e6] focus:border-[#626262] outline-none" @bind="_newShortPath" placeholder="launch-week" />
+                </div>
+                <div>
+                    <label class="text-xs uppercase tracking-[0.16em] text-slate-500">Destination</label>
+                    <input class="w-full rounded-sm border border-[#3a3a3a] bg-[#0f0f0f] px-3 py-2 text-sm text-[#e6e6e6] focus:border-[#626262] outline-none" @bind="_newRedirect" placeholder="https://example.com" />
+                </div>
+                <div class="flex items-center gap-2 md:col-span-2">
+                    <input id="private-toggle" type="checkbox" @bind="_newPrivate" />
+                    <label for="private-toggle" class="text-sm text-[#e0e0e0] flex items-center gap-2">🔒 Require password</label>
+                    <input class="flex-1 rounded-sm border border-[#3a3a3a] bg-[#0f0f0f] px-3 py-2 text-sm text-[#e6e6e6] focus:border-[#626262] outline-none" @bind="_newPassword" placeholder="Password (optional)" disabled="@(!_newPrivate)" />
+                    <button type="button" @onclick="QuickPassword" class="px-2 py-1 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-xs text-[#f0f0f0] hover:bg-[#222] transition">Quick password</button>
+                </div>
+                @if (_actionError is not null)
+                {
+                    <p class="md:col-span-2 text-sm text-rose-300">@_actionError</p>
+                }
+                <div class="md:col-span-2 flex items-center justify-end gap-2">
+                    <button @onclick="Create" disabled="@_acting" class="px-4 py-2 rounded-sm bg-[#2c2c2c] border border-[#4a4a4a] text-[#f0f0f0] font-medium hover:bg-[#333] transition disabled:opacity-50">
+                        @(_acting ? "Saving..." : "Create link")
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="border border-[#303030] bg-[#111111] rounded-sm">
+            @if (_loading)
+            {
+                <p class="text-slate-400 text-sm px-4 py-3">Loading links...</p>
+            }
+            else if (_error is not null)
+            {
+                <p class="text-rose-300 text-sm px-4 py-3">@_error</p>
+            }
+            else if (Filtered().Count == 0)
+            {
+                <p class="text-slate-400 text-sm px-4 py-3">No links found.</p>
+            }
+            else
+            {
+                <div class="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
+                    @foreach (var url in Filtered())
+                    {
+                        <div class="rounded-md border border-[#2d2d2d] bg-[#161616] p-3 space-y-2">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-blue-300">🔗</span>
+                                    <div>
+                                        <p class="text-white font-semibold flex items-center gap-2 max-w-full" title="/@url.ShortPath">
+                                            <span class="truncate max-w-[220px]">/@url.ShortPath</span>
+                                            @if (url.IsPrivate) { <Badge Tone="info">🔒 Private</Badge> }
+                                            @if (url.Deprecated) { <Badge Tone="danger">Deprecated</Badge> }
+                                        </p>
+                                        <p class="text-xs text-slate-400">@(url.CreatedAt?.ToString("g") ?? "-")</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="text-sm text-slate-200 break-words">@url.RedirectUrl</p>
+                            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                                <span class="flex items-center gap-1">✓ @(url.Deprecated ? "Inactive" : "Active")</span>
+                                <div class="flex items-center gap-2">
+                                    <button @onclick="() => Copy(url.ShortPath)" class="px-2 py-1 rounded-lg border border-slate-800 text-slate-300 hover:text-white">Copy</button>
+                                    <button @onclick="() => ToggleDeprecated(url.ShortPath, !url.Deprecated)" disabled="@_acting" class="px-2 py-1 rounded-lg border border-slate-800 text-slate-300 hover:text-white disabled:opacity-60">
+                                        @(url.Deprecated ? "Activate" : "Deprecate")
+                                    </button>
+                                    <button @onclick="() => _pendingDelete = url.ShortPath" disabled="@_acting" class="px-2 py-1 rounded-lg border border-rose-500/40 text-rose-200 hover:bg-rose-500/10 disabled:opacity-60">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (_pendingDelete is not null)
+    {
+        <ModalDialog OnClose="() => _pendingDelete = null">
+            <div class="space-y-3">
+                <p class="text-lg font-semibold text-white">Delete /@_pendingDelete?</p>
+                <p class="text-sm text-slate-300">This cannot be undone and clients will stop resolving this link.</p>
+                <div class="flex justify-end gap-2">
+                    <button @onclick="() => _pendingDelete = null" class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-sm text-[#e6e6e6] hover:bg-[#242424] transition">Cancel</button>
+                    <button @onclick="ConfirmDelete" disabled="@_acting" class="px-3 py-2 rounded-sm border border-rose-500/60 bg-rose-500/10 text-sm text-rose-100 hover:bg-rose-500/20 transition disabled:opacity-60">Delete</button>
+                </div>
+            </div>
+        </ModalDialog>
+    }
+
+    @if (_notice is not null)
+    {
+        <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] px-3 py-2 text-sm text-[#e6e6e6] shadow-lg">
+            <span>@_notice</span>
+            <button @onclick="() => _notice = null" class="text-xs text-slate-400 hover:text-white transition">Close</button>
+        </div>
+    }
+</AdminShell>
+
+@code {
+    private List<Url> _urls = new();
+    private string _search = string.Empty;
+    private string _statusFilter = "all";
+    private string _privacyFilter = "all";
+    private bool _loading = true;
+    private bool _acting;
+    private string? _error;
+    private string? _actionError;
+    private string? _notice;
+    private string? _pendingDelete;
+
+    private string _newShortPath = string.Empty;
+    private string _newRedirect = string.Empty;
+    private bool _newPrivate;
+    private string _newPassword = string.Empty;
+
+    private const string PwAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            _urls = await UrlAdmin.GetAllAsync();
+            _error = null;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private List<Url> Filtered()
+    {
+        var q = _search.Trim().ToLowerInvariant();
+        return _urls
+            .Where(u =>
+            {
+                if (_statusFilter == "active" && u.Deprecated) return false;
+                if (_statusFilter == "deprecated" && !u.Deprecated) return false;
+                if (_privacyFilter == "private" && !u.IsPrivate) return false;
+                if (_privacyFilter == "public" && u.IsPrivate) return false;
+                if (string.IsNullOrEmpty(q)) return true;
+                return (u.ShortPath?.ToLowerInvariant().Contains(q) ?? false)
+                       || (u.RedirectUrl?.ToLowerInvariant().Contains(q) ?? false);
+            })
+            .OrderByDescending(u => u.CreatedAt ?? DateTimeOffset.MinValue)
+            .ToList();
+    }
+
+    private void QuickPassword()
+    {
+        _newPrivate = true;
+        if (string.IsNullOrEmpty(_newPassword))
+        {
+            _newPassword = RandomString(10);
+        }
+    }
+
+    private static string RandomString(int len)
+    {
+        var rng = Random.Shared;
+        return new string(Enumerable.Range(0, len).Select(_ => PwAlphabet[rng.Next(PwAlphabet.Length)]).ToArray());
+    }
+
+    private async Task Create()
+    {
+        _actionError = null;
+        if (string.IsNullOrEmpty(_newShortPath) || string.IsNullOrEmpty(_newRedirect))
+        {
+            _actionError = "Short path and destination are required.";
+            return;
+        }
+        _acting = true;
+        try
+        {
+            var result = await UrlAdmin.CreateAsync(new UrlCreateRequest
+            {
+                ShortPath = _newShortPath,
+                RedirectUrl = _newRedirect,
+                Private = _newPrivate,
+                Password = _newPrivate ? (string.IsNullOrEmpty(_newPassword) ? null : _newPassword) : null,
+            });
+            if (!result.Ok) { _actionError = result.Error; return; }
+            _notice = $"/{_newShortPath} created";
+            _newShortPath = _newRedirect = _newPassword = string.Empty;
+            _newPrivate = false;
+            await Load();
+        }
+        finally { _acting = false; }
+    }
+
+    private async Task ToggleDeprecated(string shortPath, bool deprecated)
+    {
+        _actionError = null;
+        _acting = true;
+        try
+        {
+            await UrlAdmin.UpdateAsync(new UrlUpdateRequest { ShortPath = shortPath, Deprecated = deprecated });
+            _notice = $"/{shortPath} {(deprecated ? "deprecated" : "activated")}";
+            await Load();
+        }
+        finally { _acting = false; }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        var target = _pendingDelete;
+        _pendingDelete = null;
+        if (target is null) return;
+        _acting = true;
+        try
+        {
+            await UrlAdmin.DeleteAsync(target);
+            _notice = $"/{target} deleted";
+            await Load();
+        }
+        finally { _acting = false; }
+    }
+
+    private async Task Copy(string shortPath)
+    {
+        try
+        {
+            var origin = await JS.InvokeAsync<string>("urlShortener.origin");
+            await JS.InvokeAsync<bool>("urlShortener.copyText", $"{origin}/{shortPath}");
+            _notice = $"Copied /{shortPath}";
+        }
+        catch { _actionError = "Clipboard not available in this browser."; }
+    }
+}

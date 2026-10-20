@@ -1,0 +1,16 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using UrlShortener.Admin.Components.Pages
+
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                <RedirectToSignin />
+            </NotAuthorized>
+            <Authorizing>
+                <p class="p-4 text-slate-400">Checking session...</p>
+            </Authorizing>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>

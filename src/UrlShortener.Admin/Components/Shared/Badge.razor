@@ -1,0 +1,16 @@
+<span class="inline-flex items-center gap-1 border px-2 py-0.5 text-[11px] tracking-tight @ToneClass">
+    @ChildContent
+</span>
+
+@code {
+    [Parameter] public string Tone { get; set; } = "neutral";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string ToneClass => Tone switch
+    {
+        "success" => "border-[#4d7a4d] text-[#d5f1d5]",
+        "danger" => "border-[#8a3b3b] text-[#f1dada]",
+        "info" => "border-[#3f5f8f] text-[#d6e3f7]",
+        _ => "border-[#4a4a4a] text-[#dcdcdc]",
+    };
+}

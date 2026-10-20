@@ -1,0 +1,13 @@
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+    <div class="w-full max-w-md border border-[#3a3a3a] bg-[#141414] p-4 text-[#e6e6e6] shadow-lg rounded-sm">
+        <div class="flex justify-end">
+            <button @onclick="OnClose" class="px-2 py-1 text-xs text-slate-400 hover:text-white border border-[#3a3a3a] bg-[#1b1b1b]">Close</button>
+        </div>
+        <div class="mt-2">@ChildContent</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+}

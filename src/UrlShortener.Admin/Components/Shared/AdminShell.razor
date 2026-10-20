@@ -1,0 +1,45 @@
+@inject NavigationManager Nav
+
+<div class="min-h-screen bg-[#0c0c0c] text-[#dcdcdc]" style="font-family:Tahoma,sans-serif">
+    <div class="px-3 py-4 space-y-4">
+        <nav class="flex items-center justify-between gap-3 border border-[#303030] bg-[#141414] px-3 py-2">
+            <div class="flex items-center gap-2 text-sm font-semibold">
+                <a href="/admin/dashboard" class="flex items-center gap-2">
+                    <img src="https://serv.husky.nz/logo/default.png" alt="Husky" class="h-6 w-auto" />
+                    <span>⚙</span>
+                </a>
+                Admin Console
+            </div>
+            <div class="flex items-center gap-2">
+                @foreach (var item in NavItems)
+                {
+                    var active = CurrentPath.StartsWith(item.Href, StringComparison.OrdinalIgnoreCase);
+                    <a href="@item.Href"
+                       class="px-3 py-1 text-sm border @(active ? "border-[#4a4a4a] bg-[#1f1f1f]" : "border-[#2d2d2d] bg-[#0f0f0f] text-[#c4c4c4]")">
+                        @item.Label
+                    </a>
+                }
+                <form method="post" action="/auth/logout" class="inline">
+                    <button type="submit" class="px-3 py-1 text-sm border border-[#2d2d2d] bg-[#0f0f0f] text-[#c4c4c4] hover:bg-[#171717]">Sign out</button>
+                </form>
+            </div>
+        </nav>
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private record NavItem(string Href, string Label);
+
+    private static readonly NavItem[] NavItems =
+    {
+        new("/admin/dashboard", "Dashboard"),
+        new("/admin/urls", "URLs"),
+        new("/admin/stats", "Stats"),
+        new("/admin/users", "Users"),
+    };
+
+    private string CurrentPath => new Uri(Nav.Uri).AbsolutePath;
+}
