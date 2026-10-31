@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <!-- Protected explorer assets are embedded, never placed in wwwroot. -->
+    <EmbeddedResource Include="Assets/SwaggerUI/*" />
+    <ProjectReference Include="..\UrlShortener.Shared\UrlShortener.Shared.csproj" />
+    <!-- Reuse the actual API route/contract assembly for offline specification
+         generation. This does not run or call the API host over HTTP. -->
+    <ProjectReference Include="..\UrlShortener.Api\UrlShortener.Api.csproj" AdditionalProperties="ApiContractOnly=true" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+</Project>

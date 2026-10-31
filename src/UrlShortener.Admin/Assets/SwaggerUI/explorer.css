@@ -1,0 +1,41 @@
+#api-explorer{min-width:0}.swagger-ui{color:#ddd;font-family:Tahoma,sans-serif}
+.swagger-ui .topbar{display:none}
+.swagger-ui .wrapper{padding:0;max-width:none}
+.swagger-ui .info{margin:12px 0 24px}.swagger-ui .info .title{color:#f0f0f0;font-size:22px}
+.swagger-ui .info p,.swagger-ui .info li,.swagger-ui .info .base-url,.swagger-ui .opblock-tag,.swagger-ui .opblock-summary-description,.swagger-ui .opblock-summary-path,.swagger-ui .opblock-summary-operation-id,.swagger-ui .opblock-description-wrapper p,.swagger-ui .opblock-external-docs-wrapper p,.swagger-ui .opblock-title_normal,.swagger-ui .parameter__name,.swagger-ui .parameter__type,.swagger-ui .parameter__in,.swagger-ui .response-col_status,.swagger-ui .response-col_description,.swagger-ui .response-col_links,.swagger-ui .model,.swagger-ui .model-title,.swagger-ui .model-title__text,.swagger-ui .tab li,.swagger-ui table thead tr th,.swagger-ui table thead tr td,.swagger-ui .responses-inner h4,.swagger-ui .responses-inner h5,.swagger-ui label,.swagger-ui .loading-container .loading:after{color:#ddd}
+.swagger-ui .opblock-tag small{color:#aaa}.swagger-ui .opblock-tag{border-bottom-color:#404040;font-size:17px}
+.swagger-ui .opblock .opblock-section-header,.swagger-ui .scheme-container{background:#1c1c1c;box-shadow:none}
+.swagger-ui .opblock .opblock-section-header h4,.swagger-ui .opblock .opblock-section-header label{color:#ddd}
+.swagger-ui .scheme-container{padding:14px;margin:12px 0;border:1px solid #333;border-radius:4px}
+.swagger-ui section.models{border-color:#404040}.swagger-ui section.models h4{color:#ddd;border-bottom-color:#404040}
+.swagger-ui section.models .model-container{background:#191919}.swagger-ui .model-box{background:#1c1c1c}
+.swagger-ui .model-toggle:after{filter:invert(1)}.swagger-ui svg:not(.authorization__btn svg){fill:#bdbdbd}
+.swagger-ui input[type=text],.swagger-ui input[type=password],.swagger-ui input[type=search],.swagger-ui select,.swagger-ui textarea{background:#101010;border:1px solid #555;color:#ddd;border-radius:4px;max-width:100%}
+.swagger-ui .btn{color:#ddd;border-color:#777}.swagger-ui .filter-container .filter{margin:0 0 16px}
+.swagger-ui .opblock-summary{flex-wrap:wrap}.swagger-ui .opblock-summary-path{overflow-wrap:anywhere;max-width:100%}
+.swagger-ui .opblock-summary-method{color:#fff}.swagger-ui .opblock-body{overflow-x:auto}
+.swagger-ui a{color:#93c5fd}.swagger-ui .markdown code{background:#252525;color:#e2e8f0}
+.swagger-ui .opblock .opblock-summary .view-line-link{color:#bbb}
+.swagger-ui :focus-visible{outline:2px solid #93c5fd;outline-offset:3px}
+@media(max-width:540px){.swagger-ui .opblock-summary-path{font-size:12px}.swagger-ui .opblock-summary-description{font-size:12px}.swagger-ui .opblock .opblock-summary-method{min-width:65px}.swagger-ui .info .title{font-size:18px}}
+/* Override Swagger's light-theme defaults, including nested Markdown, schema
+   properties and response descriptions that otherwise inherit dark gray. */
+#api-explorer .swagger-ui{font-size:14px;line-height:1.6}
+#api-explorer .swagger-ui p,#api-explorer .swagger-ui li,#api-explorer .swagger-ui td,#api-explorer .swagger-ui th,#api-explorer .swagger-ui h3,#api-explorer .swagger-ui h4,#api-explorer .swagger-ui h5,#api-explorer .swagger-ui label,#api-explorer .swagger-ui .renderedMarkdown,#api-explorer .swagger-ui .prop-name,#api-explorer .swagger-ui .prop-type,#api-explorer .swagger-ui .property,#api-explorer .swagger-ui .model-title,#api-explorer .swagger-ui .response-col_description,#api-explorer .swagger-ui .parameter__name,#api-explorer .swagger-ui .parameter__type,#api-explorer .swagger-ui .parameter__in{color:#e8e8e8}
+#api-explorer .swagger-ui pre,#api-explorer .swagger-ui pre code,#api-explorer .swagger-ui .microlight{background:#171717;color:#f0f0f0;font-size:13px;line-height:1.7}
+#api-explorer .swagger-ui .highlight-code{background:#171717}
+#api-explorer .swagger-ui .prop-format{color:#c3c3c3}
+#api-explorer .swagger-ui .dialog-ux .modal-ux{background:#171717;border:1px solid #555;color:#eee}
+#api-explorer .swagger-ui .dialog-ux .modal-ux-header{border-bottom-color:#444}
+#api-explorer .swagger-ui .dialog-ux .modal-ux-content p{color:#eee}
+#api-explorer .swagger-ui .btn.execute{color:#fff;background:#2563eb;border-color:#60a5fa}
+#api-explorer .swagger-ui .btn.authorize{color:#bbf7d0;border-color:#86efac}
+#api-explorer .swagger-ui .btn.cancel{color:#fda4af}
+#api-explorer .swagger-ui .opblock-summary-description{font-size:14px;color:#eee}
+#api-explorer .swagger-ui .servers-title{color:#eee}
+/* Swagger's .opblock .opblock-summary-path and a.nostyle rules override the
+   generic theme. Target both the path container and its actual text nodes. */
+#api-explorer .swagger-ui .opblock .opblock-summary-path,
+#api-explorer .swagger-ui .opblock .opblock-summary-path a.nostyle,
+#api-explorer .swagger-ui .opblock .opblock-summary-path a.nostyle span{color:#f8fafc;font-weight:600}
+#api-explorer .swagger-ui .opblock .opblock-summary-operation-id{color:#d4d4d4}

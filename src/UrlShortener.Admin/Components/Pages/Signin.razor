@@ -1,0 +1,46 @@
+@page "/signin"
+@using Microsoft.AspNetCore.Components.Web
+
+<PageTitle>Admin Access Required</PageTitle>
+
+<div class="min-h-screen bg-[#0a0a0a] flex flex-col items-center pt-20 p-4">
+    <div class="w-full max-w-md">
+        <div class="text-center mb-8">
+            <img src="https://serv.husky.nz/logo/default180.png" width="80" height="80" alt="Logo" class="rounded mx-auto mb-6" />
+            <h1 class="text-2xl font-bold text-gray-200">Admin Access Required</h1>
+            <p class="text-gray-400 mt-2">Sign in to continue to dashboard</p>
+        </div>
+
+        <div class="bg-[#111] border border-gray-800 rounded-lg p-6 space-y-6">
+            @if (Error is not null)
+            {
+                <div class="mb-2 p-4 bg-red-500/10 border border-red-500/20 rounded">
+                    <p class="text-red-500 text-center text-sm">Invalid email or password.</p>
+                </div>
+            }
+
+            <form method="post" action="/auth/login" class="space-y-4">
+                <AntiforgeryToken />
+                <input type="hidden" name="callbackUrl" value="@(CallbackUrl ?? "/admin/dashboard")" />
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Email</label>
+                    <input type="email" name="email" required autocomplete="email"
+                           class="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" />
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Password</label>
+                    <input type="password" name="password" required autocomplete="current-password" maxlength="@AdminPassword.MaxLength"
+                           class="w-full p-2 rounded-lg bg-[#0a0a0a] border border-gray-800 text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" />
+                </div>
+                <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors font-semibold">
+                    Sign in with Email
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+    [SupplyParameterFromQuery(Name = "callbackUrl")] public string? CallbackUrl { get; set; }
+}

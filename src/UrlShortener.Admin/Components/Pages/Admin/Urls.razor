@@ -1,0 +1,140 @@
+@page "/admin/urls"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = AuthConstants.AdminSessionPolicy)]
+@inject ApiV1Links Links
+@inject ApiV1Schedules Schedules
+@inject UrlAdminService UrlAdmin
+@inject AdminActionGuard Guard
+@inject IJSRuntime JS
+@inject IOptions<UrlShortenerOptions> Options
+
+<PageTitle>Links · Admin Console</PageTitle>
+<AdminShell>
+    <div class="link-workspace">
+        <header class="workspace-heading">
+            <div><h1>Links</h1><p>Manage destinations without changing your public aliases.</p></div>
+            <button class="workspace-button" @onclick="RefreshWorkspace" disabled="@(_loading || _acting)">Refresh</button>
+        </header>
+        @if (_actionError is not null) { <p role="alert" class="workspace-alert">@_actionError</p> }
+        @if (_notice is not null) { <p role="status" class="workspace-notice">@_notice</p> }
+        @if (_selected is null)
+        {
+        <div class="workspace-metrics">
+            <div class="workspace-panel"><p>Links on this page</p><strong>@_urls.Count</strong></div>
+            <div class="workspace-panel"><p>Active on this page</p><strong>@_urls.Count(u => !u.Deprecated && !u.Archived)</strong></div>
+            <div class="workspace-panel"><p>Private on this page</p><strong>@_urls.Count(u => u.Private)</strong></div>
+        </div>
+        <details class="workspace-panel">
+            <summary>Create a short link</summary>
+            <div class="workspace-fields" style="margin-top:16px">
+                <label class="workspace-field">Short path (blank generates one)<input @bind="_newShortPath" maxlength="200" placeholder="launch-week" disabled="@_acting" /></label>
+                <label class="workspace-field">Destination URL<input type="url" @bind="_newRedirect" placeholder="https://example.com" disabled="@_acting" /></label>
+                <label class="workspace-check"><input type="checkbox" @bind="_newPrivate" disabled="@_acting" /> Require a password</label>
+                <label class="workspace-check"><input type="checkbox" @bind="_newListed" disabled="@_acting" /> Show in public directory</label>
+                <label class="workspace-field">Password<input type="@(_showNewPassword ? "text" : "password")" @bind="_newPassword" autocomplete="new-password" disabled="@(!_newPrivate || _acting)" maxlength="@PrivateLinkPassword.MaxLength" /></label>
+            </div>
+            <div class="workspace-actions">
+                <button @onclick="QuickPassword" disabled="@_acting">Generate password</button>
+                <button @onclick="() => _showNewPassword = !_showNewPassword" disabled="@(!_newPrivate || _acting)" aria-pressed="@_showNewPassword.ToString().ToLowerInvariant()">@(_showNewPassword ? "Hide password" : "Show password")</button>
+                <button @onclick="Create" disabled="@_acting">@(_acting ? "Saving…" : "Create link")</button>
+            </div>
+        </details>
+        <section class="workspace-panel" aria-label="Link filters">
+            <div class="workspace-filters">
+                <label class="workspace-field">Search<input @bind="_search" maxlength="200" placeholder="Alias or destination" disabled="@(_loading || _acting)" /></label>
+                <label class="workspace-field">Status<select @bind="_statusFilter" disabled="@(_loading || _acting)"><option value="all">All statuses</option><option value="active">Active</option><option value="deprecated">Deprecated</option><option value="archived">Archived</option></select></label>
+                <label class="workspace-field">Privacy<select @bind="_privacyFilter" disabled="@(_loading || _acting)"><option value="all">Any privacy</option><option value="public">Public</option><option value="private">Private</option></select></label>
+                <button class="workspace-button" @onclick="ApplyFilters" disabled="@(_loading || _acting)">Apply filters</button>
+            </div>
+        </section>
+        @if (_loading) { <p role="status" class="workspace-help">Loading links…</p> }
+        else if (_error is not null)
+        {
+            <div role="alert" class="workspace-alert">@_error <button class="workspace-button" @onclick="Load">Try again</button></div>
+        }
+        else if (_urls.Count == 0) { <p class="workspace-panel workspace-help">No matching links. Change the filters or create your first link.</p> }
+        else
+        {
+            <div class="link-grid">
+                @foreach (var url in _urls)
+                {
+                    <article class="link-card" @key="url.Id">
+                        <h2>/@url.ShortPath</h2>
+                        <div class="link-tags"><span>@url.Availability.Replace('_', ' ')</span><span>@(url.Private ? "Password protected" : "Public")</span><span>@(url.Listed ? "Listed" : "Unlisted")</span></div>
+                        <p class="link-destination">@url.DestinationUrl</p>
+                        <p class="workspace-help">Version @url.Version · @url.UsageCount uses@(url.UsageQuota is null ? "" : $" / {url.UsageQuota} quota")</p>
+                        <div class="workspace-actions">
+                            <button @onclick="() => Copy(url.ShortPath)" disabled="@_acting">Copy</button>
+                            <button @onclick="() => Open(url.Id)" disabled="@_acting">Manage</button>
+                            <button @onclick="() => ToggleArchive(url)" disabled="@_acting">@(url.Archived ? "Restore" : "Archive")</button>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+        <div class="workspace-pagination">
+            <button class="workspace-button" @onclick="PreviousPage" disabled="@(_loading || _acting || _page == 1)">Previous</button>
+            <span>Page @_page · @_total matching links</span>
+            <button class="workspace-button" @onclick="NextPage" disabled="@(_loading || _acting || !_hasNext)">Next</button>
+        </div>
+        }
+        @if (_selected is not null)
+        {
+            <section class="workspace-panel" aria-label="Manage selected link">
+                <header class="workspace-heading"><div><h2>Manage /@_selected.ShortPath</h2><p>Public alias is unchanged. Editing version @_selected.Version.</p></div><button class="workspace-button" @onclick="Close" disabled="@_acting">Back to inventory</button></header>
+                <div class="workspace-fields">
+                    <label class="workspace-field">Destination URL<input type="url" @bind="_editDestination" disabled="@_acting" /></label>
+                    <label class="workspace-field">New password (blank keeps existing)<input type="password" @bind="_editPassword" autocomplete="new-password" maxlength="@PrivateLinkPassword.MaxLength" disabled="@(!_editPrivate || _acting)" /></label>
+                    <label class="workspace-check"><input type="checkbox" @bind="_editPrivate" disabled="@_acting" /> Require password</label>
+                    <label class="workspace-check"><input type="checkbox" @bind="_editListed" disabled="@_acting" /> Show in public directory</label>
+                    <label class="workspace-check"><input type="checkbox" @bind="_editDeprecated" disabled="@_acting" /> Deprecated</label>
+                    <label class="workspace-field">Usage quota (blank clears)<input type="number" min="1" @bind="_editQuota" disabled="@_acting" /></label>
+                    <label class="workspace-field">Available from (UTC)<input type="datetime-local" @bind="_editStart" disabled="@_acting" /></label>
+                    <label class="workspace-field">Available until (UTC)<input type="datetime-local" @bind="_editEnd" disabled="@_acting" /></label>
+                </div>
+                <div class="workspace-actions"><button @onclick="Save" disabled="@_acting">Save changes</button><button @onclick="() => Open(_selected.Id)" disabled="@_acting">Reload current version</button><button @onclick="Check" disabled="@_acting">Check availability</button></div>
+                <p class="workspace-help">Clearing both availability dates removes the window. Archive stops redirects without freeing the alias. Unlisted links still resolve.</p>
+                @if (_detailError is not null) { <p role="alert" class="workspace-alert">@_detailError</p> }
+                <div class="workspace-history">
+                    <h2>Destination history</h2>
+                    <p class="workspace-help">Restoring a revision changes only the destination, not password or other settings.</p>
+                    <ul>
+                        @foreach (var revision in _history)
+                        {
+                            <li>Version @revision.Version · @revision.CreatedAt.ToString("u")<p class="link-destination">@revision.DestinationUrl</p><button class="workspace-button" @onclick="() => RestoreRevision(revision.Id)" disabled="@_acting">Restore destination</button></li>
+                        }
+                    </ul>
+                    @if (_history.Count == 0) { <p class="workspace-help">No recorded revisions.</p> }
+                    <div class="workspace-actions"><button @onclick="HistoryPrevious" disabled="@(_acting || _historyPage == 1)">Previous revisions</button><span class="workspace-help">@_historyTotal revisions</span><button @onclick="HistoryNext" disabled="@(_acting || !_historyNext)">Next revisions</button></div>
+                </div>
+                <div class="workspace-history">
+                    <h2>Scheduled destination changes</h2>
+                    <p class="workspace-help">Times are UTC. A change runs only if this version and the creator's permissions remain current. Later edits can put it into conflict.</p>
+                    <div class="workspace-fields">
+                        <label class="workspace-field">Future destination<input type="url" @bind="_scheduleDestination" disabled="@_acting" /></label>
+                        <label class="workspace-field">Run at (UTC)<input type="datetime-local" @bind="_scheduleAt" disabled="@_acting" /></label>
+                    </div>
+                    <div class="workspace-actions"><button @onclick="CreateSchedule" disabled="@(_acting || _selected.Archived)">Schedule change</button></div>
+                    <ul>
+                        @foreach (var change in _schedules)
+                        {
+                            <li>@change.RunAt.ToString("u") · @change.Status · expected version @change.ExpectedVersion<p class="link-destination">@change.DestinationUrl</p>@if (change.Status == "pending") { <button class="workspace-button" @onclick="() => CancelSchedule(change.Id)" disabled="@_acting">Cancel change</button> }</li>
+                        }
+                    </ul>
+                    @if (_schedules.Count == 0) { <p class="workspace-help">No scheduled changes.</p> }
+                    <div class="workspace-actions"><button @onclick="SchedulesPrevious" disabled="@(_acting || _schedulePage == 1)">Previous changes</button><span class="workspace-help">@_scheduleTotal changes</span><button @onclick="SchedulesNext" disabled="@(_acting || !_scheduleNext)">Next changes</button></div>
+                </div>
+                <details class="workspace-history"><summary>Advanced: permanent deletion</summary><p class="workspace-help">Use archive instead wherever possible. Permanent deletion cannot be undone and frees the alias for reuse.</p><div class="workspace-actions"><button class="workspace-danger" @onclick="() => _pendingDelete = _selected" disabled="@_acting">Permanently delete</button></div></details>
+            </section>
+        }
+        @if (_pendingDelete is not null)
+        {
+            <section class="workspace-panel" role="alert" aria-label="Confirm permanent deletion">
+                <h2>Permanently delete /@_pendingDelete.ShortPath?</h2>
+                <p class="workspace-help">This cannot be undone. Type the alias without the slash to confirm.</p>
+                <label class="workspace-field">Alias confirmation<input @bind="_deleteConfirmation" disabled="@_acting" /></label>
+                <div class="workspace-actions"><button @onclick="CancelDelete" disabled="@_acting">Cancel</button><button class="workspace-danger" @onclick="ConfirmDelete" disabled="@(_acting || _deleteConfirmation != _pendingDelete.ShortPath)">Delete permanently</button></div>
+            </section>
+        }
+    </div>
+</AdminShell>

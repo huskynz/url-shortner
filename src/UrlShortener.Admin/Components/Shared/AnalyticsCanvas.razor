@@ -1,0 +1,133 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject ILogger<AnalyticsCanvas> Logger
+
+<div class="analytics-widget @(Kind == "doughnut" ? "analytics-widget--donut" : "")">
+    <div class="analytics-controls" role="group" aria-label="@($"{Label} controls")">
+        <label>Chart type
+            <select data-chart-type disabled="@(!_ready)" aria-label="@($"{Label} chart type")">
+                @if (CategoryControls)
+                {
+                    <option value="doughnut" selected="@(Kind == "doughnut")">Doughnut</option>
+                }
+                else
+                {
+                    <option value="line" selected="@(Kind == "line")">Line</option>
+                }
+                <option value="bar" selected="@(Kind == "bar")">Bars</option>
+                <option value="horizontalBar" selected="@(Kind == "horizontalBar")">Horizontal bars</option>
+            </select>
+        </label>
+        @if (!CategoryControls)
+        {
+            <label>Data points
+                <select data-chart-limit disabled="@(!_ready)" aria-label="@($"{Label} plotted data points")">
+                    <option value="1000">1,000</option>
+                    <option value="5000" selected>5,000 (default)</option>
+                    <option value="10000">10,000</option>
+                    <option value="all">Show all</option>
+                </select>
+            </label>
+            <label><input type="checkbox" data-chart-points disabled="@(!_ready || Kind != "line")" /> Show point markers</label>
+        }
+        @if (EnableZoom && Labels.Length > 1)
+        {
+            <button type="button" data-chart-command="zoom-in" disabled="@(!_ready)">Zoom in</button>
+            <button type="button" data-chart-command="zoom-out" disabled="@(!_ready)">Zoom out</button>
+            <button type="button" data-chart-command="left" aria-label="Pan to earlier dates" disabled="@(!_ready)">←</button>
+            <button type="button" data-chart-command="right" aria-label="Pan to later dates" disabled="@(!_ready)">→</button>
+        }
+        <button type="button" data-chart-command="reset" disabled="@(!_ready)">Reset view</button>
+        <button type="button" data-chart-command="download" disabled="@(!_ready)">Save PNG</button>
+    </div>
+    <p class="analytics-view-status" data-chart-status role="status">Full chart · exact values below</p>
+    <div class="analytics-widget-content">
+        <div class="analytics-canvas">
+            <canvas @ref="_canvas" role="img" aria-label="@Label">@Label. Exact values are available in the accompanying table.</canvas>
+            @if (_unavailable)
+            {
+                <p class="analytics-chart-fallback" role="status">Chart unavailable. Exact values are available below.</p>
+            }
+        </div>
+        @ChildContent
+    </div>
+    @if (EnableZoom && Labels.Length > 1)
+    {
+        <p class="stats-note">Shift + scroll to zoom; drag to pan when zoomed. Buttons work with keyboard and touch. Zoom changes the view, not the totals.</p>
+    }
+</div>
+
+@code {
+    [Parameter] public string Kind { get; set; } = "line";
+    [Parameter] public string Label { get; set; } = "Visit counts";
+    [Parameter] public string[] Labels { get; set; } = [];
+    [Parameter] public int[] Values { get; set; } = [];
+    [Parameter] public bool EnableZoom { get; set; }
+    [Parameter] public bool CategoryControls { get; set; }
+    [Parameter] public int ViewVersion { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private ElementReference _canvas;
+    private bool _pending;
+    private bool _unavailable;
+    private bool _disposed;
+    private bool _ready;
+    private string[]? _previousLabels;
+    private int[]? _previousValues;
+    private string? _previousKind;
+    private bool _previousZoom;
+    private bool _previousCategories;
+    private int _previousViewVersion;
+    private bool _resetFocus;
+
+    protected override void OnParametersSet()
+    {
+        // Do not erase browser-side choices on unrelated parent renders.
+        _resetFocus |= _previousViewVersion != ViewVersion;
+        _pending |= _resetFocus || _unavailable || _previousKind != Kind || _previousZoom != EnableZoom || _previousCategories != CategoryControls || _previousLabels is null || _previousValues is null
+            || !_previousLabels.SequenceEqual(Labels) || !_previousValues.SequenceEqual(Values);
+        _previousKind = Kind;
+        _previousZoom = EnableZoom;
+        _previousCategories = CategoryControls;
+        _previousViewVersion = ViewVersion;
+        _previousLabels = Labels.ToArray();
+        _previousValues = Values.ToArray();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_pending || _disposed) return;
+        _pending = false;
+        try
+        {
+            var available = await JS.InvokeAsync<bool>("analyticsCharts.render", _canvas, Kind, Labels, Values, EnableZoom, CategoryControls, _resetFocus);
+            if (available) _resetFocus = false;
+            if (_disposed) return;
+            if (_unavailable == available || _ready != available)
+            {
+                _unavailable = !available;
+                _ready = available;
+                StateHasChanged();
+            }
+        }
+        catch (JSDisconnectedException) { _pending = true; }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Unable to render analytics chart");
+            if (!_disposed && !_unavailable)
+            {
+                _unavailable = true;
+                _ready = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        try { await JS.InvokeVoidAsync("analyticsCharts.destroy", _canvas); }
+        catch (JSDisconnectedException) { }
+        catch (JSException) { }
+        catch (InvalidOperationException) { /* Prerendering has no browser. */ }
+    }
+}

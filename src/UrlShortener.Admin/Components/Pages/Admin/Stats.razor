@@ -1,0 +1,158 @@
+@page "/admin/stats"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = AuthConstants.AdminSessionPolicy)]
+@inject AnalyticsService Analytics
+@inject AdminActionGuard Guard
+@inject ILogger<Stats> Logger
+@using System.Globalization
+
+<PageTitle>Stats · HuskyNZ Admin</PageTitle>
+
+<AdminShell>
+    <section class="stats-panel space-y-4" aria-label="Stats" aria-busy="@_loading.ToString().ToLowerInvariant()">
+        <div class="stats-toolbar">
+            <div class="stats-ranges" role="group" aria-label="Analytics date range">
+                @foreach (var days in new[] { 0, 7, 30, 90 })
+                {
+                    <button class="@(_range == days ? "is-active" : "")" aria-pressed="@((_range == days).ToString().ToLowerInvariant())" disabled="@_loading" @onclick="() => SetRangeAsync(days)">@(days == 0 ? "All time" : $"{days}d")</button>
+                }
+            </div>
+            <div class="stats-header-actions">
+                <label class="stats-resolution">Resolution
+                    <select value="@_resolution" @onchange="SetResolutionAsync" disabled="@_loading" aria-label="Traffic chart resolution">
+                        <option value="day" selected="@(_resolution == "day")">Daily (full detail)</option>
+                        <option value="hour" selected="@(_resolution == "hour")">Hourly</option>
+                        <option value="month" selected="@(_resolution == "month")">Monthly</option>
+                        <option value="year" selected="@(_resolution == "year")">Yearly</option>
+                    </select>
+                </label>
+                <span class="stats-toolbar-note">UTC dates · @RangeName(_range)</span>
+                <span class="stats-updated" role="status">@(_updated is null ? "Waiting for analytics" : $"Updated {_updated.Value.ToLocalTime():HH:mm:ss}")</span>
+                <button class="stats-button" disabled="@_loading" @onclick="RefreshAsync">@(_loading ? "Syncing..." : "Refresh")</button>
+            </div>
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="stats-error" role="alert"><strong>Analytics could not be loaded.</strong><p>@_error</p><button class="stats-button" disabled="@_loading" @onclick="RefreshAsync">Try again</button></div>
+        }
+        @if (_loading && _analytics is null)
+        {
+            <div class="stats-loading" role="status"><span class="stats-loading-dot"></span> Loading your traffic overview…</div>
+        }
+        else if (_analytics is not null)
+        {
+            <div class="stats-metrics">
+                <StatBlock Label="Total visits" Value="@_analytics.TotalVisits.ToString("N0")" Detail="@RangeName(_range)" Icon="📊" />
+                <StatBlock Label="Managed links" Value="@_analytics.TotalUrls.ToString("N0")" Detail="Current inventory, all dates" Icon="🔗" />
+                <StatBlock Label="@($"Peak {BucketName}")" Value="@((_peak?.Count ?? 0).ToString("N0"))" Detail="@(_peak is null || _peak.Count == 0 ? "No dated traffic yet" : $"{_peak.Date} · UTC")" Icon="↑" />
+                <StatBlock Label="@($"Dated visits / {BucketName}")" Value="@Average.ToString("N1")" Detail="Average including quiet periods" Icon="⏱" />
+            </div>
+
+            <TrafficChart Data="_analytics.VisitsOverTime" DateBucket="@_analytics.DateBucket" UndatedVisits="_analytics.UndatedVisits" RangeLabel="@RangeName(_range)" ViewVersion="_viewVersion" />
+
+            <div class="stats-distributions">
+                <AggregateChart Title="Cumulative visits" Eyebrow="Traffic growth" Kind="line" Labels="_dateLabels" Values="_cumulative" RangeLabel="@RangeName(_range)" ValueLabel="Cumulative visits" CategoryLabel="UTC date" ViewVersion="_viewVersion" Description="Running total of dated visits from the start of the selected period; not unique visitors." />
+                <AggregateChart Title="Visits by weekday" Labels="_weekdayLabels" Values="_weekdayValues" RangeLabel="@RangeName(_range)" CategoryLabel="UTC weekday" Description="Total dated visits on each weekday across the selected period, not an average per day." />
+            </div>
+            <AggregateChart Title="Visits by hour" Labels="_hourLabels" Values="_hourValues" RangeLabel="@RangeName(_range)" CategoryLabel="UTC hour" Description="Total dated visits in each UTC hour across the selected period. All 24 hours included." />
+
+            <div class="stats-section-label"><h2>Distributions</h2><span>Share of every visit in the selected period</span></div>
+            <div class="stats-distributions">
+                <BreakdownChart Title="Browsers" Data="_analytics.BrowserDistribution" Total="_analytics.TotalVisits" />
+                <BreakdownChart Title="Operating systems" Data="_analytics.OsDistribution" Total="_analytics.TotalVisits" />
+            </div>
+
+            <section class="stats-card">
+                <div class="stats-card-heading"><div><p class="stats-eyebrow">Link activity</p><h2>Most visited paths</h2><p class="stats-note">Recorded request paths, including unknown links and automated traffic.</p></div><span class="stats-badge">@RangeName(_range)</span></div>
+                @if (_links.Count > 0)
+                {
+                    <AnalyticsCanvas Kind="horizontalBar" Labels="_linkLabels" Values="_linkValues" Label="Most visited paths, including all remaining visits in Other links" />
+                    <div class="stats-table-scroll">
+                        <table class="stats-links">
+                            <caption class="sr-only">Most visited paths with total-preserving Other links</caption>
+                            <thead><tr><th scope="col">Rank</th><th scope="col">Requested path</th><th scope="col">Visits</th><th scope="col">Traffic share</th></tr></thead>
+                            <tbody>
+                                @for (var index = 0; index < _links.Count; index++)
+                                {
+                                    var row = _links[index];
+                                    var share = Share(row.Count);
+                                    <tr>
+                                        <td class="stats-rank">@(row.IsOther ? "—" : (index + 1).ToString("D2"))</td>
+                                        <th scope="row"><span class="stats-path" title="@(row.IsOther ? "Remaining request paths" : row.ShortPath)">@(row.IsOther ? "Other links" : string.IsNullOrWhiteSpace(row.ShortPath) ? "Unknown path" : $"/{row.ShortPath}")</span>@if (row.IsOther) { <small>All remaining paths combined</small> }</th>
+                                        <td class="stats-count">@row.Count.ToString("N0")</td>
+                                        <td><div class="stats-share"><span class="stats-share-bar" aria-hidden="true"><i style="width:@share.ToString("0.###", CultureInfo.InvariantCulture)%"></i></span><span>@share.ToString("0.#", CultureInfo.InvariantCulture)%</span></div></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="stats-empty"><strong>No visits in this period</strong><p>Try All time, or check back after your links receive traffic.</p></div>
+                }
+            </section>
+            <footer class="stats-footnote">Totals and tables include all data. Chart point limits affect display only; choose Show all to plot every point. Smaller categories are combined into Other, not discarded. Visits are requests, not unique people; automated traffic is included.</footer>
+        }
+    </section>
+</AdminShell>
+
+@code {
+    [SupplyParameterFromQuery(Name = "resolution")] public string? RequestedResolution { get; set; }
+    private AnalyticsResult? _analytics;
+    private List<NamedCount> _links = [];
+    private DateCount? _peak;
+    private bool _loading = true;
+    private string? _error;
+    private DateTimeOffset? _updated;
+    private int _range;
+    private int _viewVersion;
+    private string _resolution = "day";
+    private string[] _dateLabels = [], _weekdayLabels = [], _hourLabels = [], _linkLabels = [];
+    private int[] _cumulative = [], _weekdayValues = [], _hourValues = [], _linkValues = [];
+    private string BucketName => _analytics?.DateBucket ?? "day";
+    private double Average => _analytics?.VisitsOverTime is { Count: > 0 } rows ? (double)rows.Sum(r => r.Count) / rows.Count : 0;
+    private double Share(int count) => _analytics?.TotalVisits > 0 ? 100d * count / _analytics.TotalVisits : 0;
+    private static string RangeName(int days) => days == 0 ? "All time" : $"{days} days";
+    protected override Task OnInitializedAsync() => LoadAsync(resolution: RequestedResolution);
+    private Task RefreshAsync() => LoadAsync(refresh: true);
+    private Task SetRangeAsync(int days) => LoadAsync(days);
+    private Task SetResolutionAsync(ChangeEventArgs args) => LoadAsync(resolution: args.Value?.ToString() ?? "day");
+
+    private async Task LoadAsync(int? days = null, bool refresh = false, string? resolution = null)
+    {
+        if (_loading && _analytics is not null) return;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var range = days ?? _range;
+            var selectedResolution = resolution ?? _resolution;
+            var result = await Guard.Run("analytics.read", "stats", _ => Analytics.GetAnalyticsAsync(range, refresh: refresh, dateBucket: selectedResolution));
+            _analytics = result;
+            _range = range;
+            _resolution = selectedResolution;
+            if (days.HasValue || resolution is not null) _viewVersion++; // All time/resolution selections clear zoom.
+            _links = AnalyticsGroups.Compact(result.VisitStats, 10);
+            _dateLabels = result.VisitsOverTime.Select(row => row.Date).ToArray();
+            var runningTotal = 0;
+            _cumulative = result.VisitsOverTime.Select(row => runningTotal += row.Count).ToArray();
+            _weekdayLabels = result.WeekdayDistribution.Select(row => row.Name).ToArray();
+            _weekdayValues = result.WeekdayDistribution.Select(row => row.Count).ToArray();
+            _hourLabels = result.HourDistribution.Select(row => row.Name).ToArray();
+            _hourValues = result.HourDistribution.Select(row => row.Count).ToArray();
+            _linkLabels = _links.Select(row => row.IsOther ? "Other links" : string.IsNullOrWhiteSpace(row.ShortPath) ? "Unknown path" : $"/{row.ShortPath}").ToArray();
+            _linkValues = _links.Select(row => row.Count).ToArray();
+            _peak = result.VisitsOverTime.OrderByDescending(d => d.Count).FirstOrDefault();
+            _updated = DateTimeOffset.UtcNow;
+        }
+        catch (Exception ex)
+        {
+            if (ex is ApiFault) _analytics = null;
+            Logger.LogError(ex, "Unable to load Stats analytics");
+            _error = _analytics is null ? "Please retry. If this continues, check the Admin service logs." : "The previous overview is still shown. Please retry to update it.";
+        }
+        finally { _loading = false; }
+    }
+}

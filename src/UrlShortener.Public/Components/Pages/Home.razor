@@ -1,0 +1,62 @@
+@page "/"
+@using Microsoft.Extensions.Options
+@inject IOptions<UrlShortenerOptions> Options
+
+<PageTitle>HuskyNZ URL Shortener</PageTitle>
+
+@{
+    var opts = Options.Value;
+}
+
+<div style="color:#FFFFFF;background-color:#000000;min-height:100vh">
+    <div class="w-full px-4 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <img src="https://serv.husky.nz/logo/default180.png" width="50" height="50" alt="Logo" class="rounded" />
+                <div>
+                    <h1 class="text-2xl font-bold">HuskyNZ URL Shortner</h1>
+                    <p class="text-gray-400">
+                        Version: @opts.VersionNumber | Environment:
+                        <span class="@(opts.Environment == "Development" ? "uppercase text-red-500" : "text-green-400")">@opts.Environment</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-1 max-w-4xl mx-auto px-4 py-8">
+        <div class="flex flex-col items-center">
+            <p class="text-center mb-4 font-bold text-2xl">You can find us on the following platforms</p>
+            <div class="w-full flex flex-col items-center gap-4">
+                @foreach (var link in Links)
+                {
+                    <a class="@link.ButtonClass flex items-center justify-center w-full max-w-md p-4 rounded-lg transition-all hover:scale-105"
+                       href="@link.Url" target="_blank" rel="noreferrer">
+                        <img class="w-12 h-12 mr-3" src="@link.Icon" alt="@(link.Name) Logo" width="48" height="48" />
+                        <span class="text-white text-lg">@link.Name</span>
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+
+    <footer class="w-full text-center text-gray-500 p-4">
+        <p>© 2026 HuskyNZ. This sites public source is available at <a href="/gurl" class="text-white underline">here</a></p>
+        <p>By using this site you agree to HuskyNZ's <a href="https://legal.husky.nz/toc" class="text-white underline">Terms of use</a> and <a href="https://legal.husky.nz/Privacy-Policy" class="text-white underline">Privacy policy</a></p>
+    </footer>
+</div>
+
+@code {
+    private record Link(string Name, string Icon, string Url, string ButtonClass);
+
+    private static readonly Link[] Links =
+    {
+        new("Main Website", "https://serv.husky.nz/logo/default180.png", "/m", "bg-gray-800 hover:bg-gray-700"),
+        new("View all shortened urls", "https://serv.husky.nz/urlicons/generic-website.svg", "/urls", "bg-[#025436] hover:bg-[#1b1f23]"),
+        new("Twitch", "https://serv.husky.nz/urlicons/twitch.svg", "/twitch", "bg-[#6441a5] hover:bg-[#553a8e]"),
+        new("YouTube", "https://serv.husky.nz/urlicons/youtube.svg", "/youtube", "bg-[#8a0000] hover:bg-[#cc0000]"),
+        new("GitHub", "https://serv.husky.nz/urlicons/github.svg", "/github", "bg-[#24292e] hover:bg-[#1b1f23]"),
+        new("Email", "https://serv.husky.nz/urlicons/email.svg", "mailto:mail@husky.nz", "bg-gray-800 hover:bg-gray-700"),
+        new("This site's code", "https://serv.husky.nz/urlicons/generic-code.svg", "/gurl", "bg-[#24292e] hover:bg-[#1b1f23]"),
+    };
+}

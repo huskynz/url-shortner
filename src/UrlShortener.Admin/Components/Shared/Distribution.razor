@@ -1,0 +1,30 @@
+<div>
+    <p class="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">@Title</p>
+    <div class="space-y-1">
+        @if (Data is { Count: > 0 })
+        {
+            @foreach (var item in AnalyticsGroups.Compact(Data, 8))
+            {
+                var pct = Total > 0 ? Math.Min(100, (double)item.Count / Total * 100) : 0;
+                <div class="flex items-center gap-2">
+                    <div class="w-24 text-sm text-[#dcdcdc]">@(item.IsOther ? "Other categories" : item.Name)</div>
+                    <div class="flex-1 h-2 bg-[#1f1f1f] overflow-hidden border border-[#3a3a3a]">
+                        <div class="@Color" style="width:@pct.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%;height:100%"></div>
+                    </div>
+                    <span class="w-10 text-right text-xs text-slate-400">@item.Count</span>
+                </div>
+            }
+        }
+        else
+        {
+            <p class="text-sm text-slate-400">No data yet.</p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public List<NamedCount>? Data { get; set; }
+    [Parameter] public int Total { get; set; }
+    [Parameter] public string Color { get; set; } = "bg-blue-500";
+}

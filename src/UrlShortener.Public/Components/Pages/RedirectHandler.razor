@@ -1,0 +1,59 @@
+@page "/{Id}"
+@using Microsoft.AspNetCore.Http
+@inject RedirectService Redirect
+@inject VisitLogger Visits
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Nav
+
+@* Catch-all short-path handler. Literal routes (/urls, /deprecated, ...) take
+   precedence, so only genuine short paths reach here. Port of src/app/[id]/page.js. *@
+
+@if (_unavailable)
+{
+    <h1>Links are temporarily unavailable</h1>
+    <p>Please try again shortly.</p>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+    private bool _unavailable;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var payload = await Redirect.FetchRedirectUrlAsync(Id);
+        if (payload is null)
+        {
+            return; // Reserved route (handled by its own page).
+        }
+        if (payload.Unavailable)
+        {
+            _unavailable = true;
+            var http = HttpContextAccessor.HttpContext;
+            if (http is not null && !http.Response.HasStarted)
+            {
+                http.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                http.Response.Headers.CacheControl = "no-store";
+                http.Response.Headers.RetryAfter = "30";
+            }
+            return;
+        }
+
+        if (payload.Private && payload.RedirectUrl == "/password-protected")
+        {
+            Nav.NavigateTo($"/password-protected?path={Uri.EscapeDataString(Id)}", forceLoad: false);
+            return;
+        }
+
+        var target = payload.RedirectUrl;
+        var external = target.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                       || target.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+        if (external)
+        {
+            var ctx = HttpContextAccessor.HttpContext;
+            await Visits.LogUserDataAsync(Id, ctx?.Connection.RemoteIpAddress?.ToString(),
+                ctx?.Request.Headers.UserAgent.ToString(), linkId: payload.LinkId);
+        }
+        Nav.NavigateTo(target, forceLoad: external);
+    }
+
+}

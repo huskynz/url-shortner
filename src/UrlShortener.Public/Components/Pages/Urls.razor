@@ -1,0 +1,259 @@
+@page "/urls"
+@rendermode InteractiveServer
+@using Microsoft.Extensions.Options
+@inject RedirectService Redirect
+@inject IOptions<UrlShortenerOptions> Options
+@inject IJSRuntime JS
+
+<PageTitle>URLs · HuskyNZ</PageTitle>
+
+@{
+    var opts = Options.Value;
+    var filtered = FilteredUrls();
+}
+
+<div class="min-h-screen bg-[#0a0a0a] text-gray-200 font-sans flex flex-col">
+    <header class="sticky top-0 z-50 border-b border-gray-800 bg-[#0f0f0f]/95 backdrop-blur-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <img src="@opts.LogoUrl" width="40" height="40" alt="Logo" class="rounded" />
+                    <div>
+                        <h1 class="text-xl font-bold">HuskyNZ URL Shortner</h1>
+                        <p class="text-sm text-gray-400">
+                            Version @opts.VersionNumber |
+                            <span class="ml-1 @(opts.Environment == "Development" ? "text-red-500" : "text-green-400")">@opts.Environment</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <StatCard Label="URLs on this page" Value="@Stats().Total" Color="blue" Icon="🔗" />
+            <StatCard Label="Active on this page" Value="@Stats().Active" Color="green" Icon="🌐" />
+            <StatCard Label="Deprecated on this page" Value="@Stats().Deprecated" Color="yellow" Icon="⏰" />
+            <StatCard Label="Favorites" Value="@Stats().Favorites" Color="purple" Icon="⭐" />
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-4 mb-6">
+            <div class="relative flex-1">
+                <input id="url-search" type="text" placeholder="Search URLs..." @bind="_search" @bind:event="oninput"
+                       class="w-full p-2 pl-10 pr-10 border rounded bg-[#0f0f0f] border-gray-800 text-gray-300 placeholder-gray-400 focus:outline-none focus:border-gray-700 transition-colors" />
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            </div>
+            <div class="flex gap-2">
+                <button @onclick="ApplyFilters" disabled="@_loading" class="p-2 text-gray-300">Apply filters</button>
+                <button @onclick="ToggleFilters" class="p-2 rounded bg-[#0f0f0f] border border-gray-800 text-gray-300 hover:bg-gray-800/50 transition-colors" title="Toggle filters">⚙</button>
+                <button @onclick="ToggleView" class="p-2 rounded bg-[#0f0f0f] border border-gray-800 text-gray-300 hover:bg-gray-800/50 transition-colors" title="Toggle view">@(_viewMode == "grid" ? "≣" : "▦")</button>
+            </div>
+        </div>
+
+        @if (_showFilters)
+        {
+            <div class="mb-6 bg-[#0f0f0f] border border-gray-800 rounded-lg p-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Filter By</label>
+                        <select @bind="_filter" class="w-full p-2 rounded bg-[#0f0f0f] border border-gray-800 text-gray-300 focus:outline-none focus:border-gray-700">
+                            <option value="all">All URLs</option>
+                            <option value="active">Active URLs</option>
+                            <option value="deprecated">Deprecated URLs</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Sort By</label>
+                        <select @bind="_sortKey" class="w-full p-2 rounded bg-[#0f0f0f] border border-gray-800 text-gray-300 focus:outline-none focus:border-gray-700">
+                            <option value="short_path">Short Path</option>
+                            <option value="redirect_url">Redirect URL</option>
+                            <option value="favorites">Favorites on this page</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Sort Direction</label>
+                        <button @onclick="ToggleDirection" class="w-full p-2 rounded bg-[#0f0f0f] border border-gray-800 text-gray-300 hover:bg-gray-800/50 flex items-center justify-center gap-2">
+                            @(_sortDir == "asc" ? "▲ Ascending" : "▼ Descending")
+                        </button>
+                    </div>
+                    <div class="sm:col-span-2 lg:col-span-1">
+                        <label class="block text-sm text-gray-400 mb-2 invisible">Clear</label>
+                        <button @onclick="ClearFavorites" class="w-full p-2 rounded bg-red-500/10 text-red-500 border border-red-500/50 hover:bg-red-500/20 flex items-center justify-center gap-2">✕ Clear All Favorites</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (_copyError is not null)
+        {
+            <p role="alert">@_copyError</p>
+        }
+        @if (filtered.Count == 0)
+        {
+            <div class="text-center py-12 bg-[#0f0f0f] border border-gray-800 rounded-lg">
+                <p class="text-lg text-gray-300">No URLs found</p>
+                <p class="text-sm text-gray-400 mt-2">Try adjusting your search or filter</p>
+            </div>
+        }
+        else
+        {
+            <div class="grid gap-4 @(_viewMode == "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-start" : "")">
+                @foreach (var url in filtered)
+                {
+                    var isExpanded = _expandedUrl == url.ShortPath;
+                    var isFav = _favorites.Contains(url.ShortPath);
+                    <div class="group bg-[#0f0f0f] border border-gray-800 rounded-lg overflow-hidden transition-all hover:border-gray-700">
+                        <div class="p-4">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <h3 class="text-lg text-gray-200 truncate group-hover:text-white transition-colors">/@url.ShortPath</h3>
+                                        <span class="text-xs px-2 py-0.5 rounded flex-shrink-0 @(url.Deprecated ? "bg-yellow-500/10 text-yellow-500" : "bg-green-500/10 text-green-500")">
+                                            @(url.Deprecated ? "Deprecated" : "Active")
+                                        </span>
+                                    </div>
+                                    <a href="@url.RedirectUrl" target="_blank" rel="noopener noreferrer" title="@url.RedirectUrl"
+                                       class="text-sm text-gray-400 hover:text-gray-300 truncate block transition-colors">@url.RedirectUrl</a>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button @onclick="() => ToggleFavorite(url.ShortPath)" class="p-1 rounded text-gray-400 hover:text-yellow-500 hover:bg-gray-800/50 transition-colors" title="Toggle favorite">
+                                        @(isFav ? "★" : "☆")
+                                    </button>
+                                    <button @onclick="() => ToggleExpand(url.ShortPath)" class="p-1 rounded text-gray-400 hover:text-gray-300 hover:bg-gray-800/50 transition-colors">
+                                        @(isExpanded ? "▲" : "▼")
+                                    </button>
+                                </div>
+                            </div>
+
+                            @if (isExpanded)
+                            {
+                                <div class="mt-4 pt-4 border-t border-gray-800">
+                                    <div class="flex flex-wrap items-center gap-4">
+                                        <button @onclick="() => CopyUrl(url.ShortPath)" class="flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-gray-800/50 text-gray-300 hover:bg-gray-800 transition-colors">
+                                            @(_copiedUrl == url.ShortPath ? "✓ Copied!" : "⧉ Copy URL")
+                                        </button>
+                                        <a href="/@url.ShortPath" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors">↗ Visit</a>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        <div class="flex gap-4 text-sm text-gray-300">
+            <button @onclick="PreviousPage" disabled="@(_loading || _page == 1)">Previous</button>
+            <span>Page @_page · @_total matching URLs</span>
+            <button @onclick="NextPage" disabled="@(_loading || !_hasNext)">Next</button>
+        </div>
+    </main>
+
+    <footer class="w-full text-center text-gray-500 p-4">
+        <p>© 2026 HuskyNZ. This sites public source is available at <a href="/gurl" class="text-white underline">here</a></p>
+        <p>By using this site you agree to HuskyNZ's <a href="https://legal.husky.nz/toc" class="text-white underline">Terms of use</a> and <a href="https://legal.husky.nz/Privacy-Policy" class="text-white underline">Privacy policy</a></p>
+    </footer>
+</div>
+
+@code {
+    private List<Url> _urls = new();
+    private int _page = 1, _total;
+    private bool _hasNext, _loading;
+    private async Task ApplyFilters() { _page = 1; await Load(); }
+    private async Task PreviousPage() { _page--; await Load(); }
+    private async Task NextPage() { _page++; await Load(); }
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Redirect.GetDisplayPageAsync(_page, 50, _search, _filter, _sortKey, _sortDir == "desc");
+            _urls = result.Items;
+            _total = result.Total;
+            _hasNext = result.HasNext;
+        }
+        finally { _loading = false; }
+    }
+    private string _filter = "all";
+    private string _search = string.Empty;
+    private string _sortKey = "short_path";
+    private string _sortDir = "asc";
+    private string _viewMode = "grid";
+    private bool _showFilters;
+    private string? _expandedUrl;
+    private string? _copiedUrl;
+    private string? _copyError;
+    private HashSet<string> _favorites = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var favs = await JS.InvokeAsync<string[]>("urlShortener.getFavorites");
+                _favorites = new HashSet<string>(favs ?? Array.Empty<string>());
+                StateHasChanged();
+            }
+            catch { /* JS not ready; ignore */ }
+        }
+    }
+
+    private (int Total, int Active, int Deprecated, int Favorites) Stats() =>
+        (_urls.Count, _urls.Count(u => !u.Deprecated), _urls.Count(u => u.Deprecated), _favorites.Count);
+
+    private List<Url> FilteredUrls()
+    {
+        return _sortKey == "favorites" ? _urls.OrderBy(u => _favorites.Contains(u.ShortPath) ? 0 : 1).ToList() : _urls;
+    }
+
+    private void ToggleFilters() => _showFilters = !_showFilters;
+    private void ToggleView() => _viewMode = _viewMode == "grid" ? "list" : "grid";
+    private void ToggleDirection() => _sortDir = _sortDir == "asc" ? "desc" : "asc";
+    private void ToggleExpand(string shortPath) => _expandedUrl = _expandedUrl == shortPath ? null : shortPath;
+
+    private async Task ToggleFavorite(string shortPath)
+    {
+        if (!_favorites.Add(shortPath)) _favorites.Remove(shortPath);
+        await PersistFavorites();
+    }
+
+    private async Task ClearFavorites()
+    {
+        _favorites.Clear();
+        await PersistFavorites();
+    }
+
+    private async Task PersistFavorites()
+    {
+        try { await JS.InvokeVoidAsync("urlShortener.setFavorites", _favorites.ToArray()); } catch { }
+    }
+
+    private async Task CopyUrl(string shortPath)
+    {
+        _copiedUrl = null;
+        _copyError = null;
+        try
+        {
+            var origin = string.IsNullOrEmpty(Options.Value.PublicBaseUrl)
+                ? await JS.InvokeAsync<string>("urlShortener.origin") : Options.Value.PublicBaseUrl;
+            if (!await JS.InvokeAsync<bool>("urlShortener.copyText", PublicLink.Build(origin, shortPath)))
+            {
+                _copyError = "Copy failed. Check clipboard permissions and try again.";
+                return;
+            }
+            _copiedUrl = shortPath;
+            StateHasChanged();
+            await Task.Delay(2000);
+            _copiedUrl = null;
+            StateHasChanged();
+        }
+        catch { _copyError = "Clipboard not available in this browser."; }
+    }
+}

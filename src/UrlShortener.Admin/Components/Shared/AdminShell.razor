@@ -1,0 +1,41 @@
+@inject NavigationManager Nav
+@inject IOptions<UrlShortenerOptions> Options
+
+<div class="admin-workspace min-h-screen bg-[#0c0c0c] text-[#dcdcdc]" style="font-family:Tahoma,sans-serif">
+    <a class="admin-skip" href="#admin-main">Skip to content</a>
+    <aside class="admin-sidebar">
+        <a href="/admin/dashboard" class="admin-brand">
+            <img src="https://serv.husky.nz/logo/default.png" alt="Husky" width="32" height="32" />
+            <span>Admin Console<small>HuskyNZ · @Options.Value.VersionNumber</small></span>
+        </a>
+        <nav aria-label="Administration" class="admin-navigation">
+            @foreach (var item in NavItems)
+            {
+                var active = CurrentPath.StartsWith(item.Href, StringComparison.OrdinalIgnoreCase);
+                <a href="@item.Href" data-enhance-nav="@(item.Href == "/admin/api" ? "false" : "true")" aria-current="@(active ? "page" : null)" class="@(active ? "admin-nav-active" : "")">@item.Label</a>
+            }
+        </nav>
+        <div class="admin-sidebar-footer">
+            <a href="/openapi/v1.json" download="api-v1.json" data-enhance-nav="false">API specification</a>
+            <form method="post" action="/auth/logout">
+                <AntiforgeryToken />
+                <button type="submit">Sign out</button>
+            </form>
+        </div>
+    </aside>
+    <main id="admin-main" class="admin-content">@ChildContent</main>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private record NavItem(string Href, string Label);
+    private static readonly NavItem[] NavItems =
+    {
+        new("/admin/dashboard", "Dashboard"),
+        new("/admin/urls", "URLs"),
+        new("/admin/stats", "Stats"),
+        new("/admin/users", "Users"),
+        new("/admin/api", "API explorer"),
+    };
+    private string CurrentPath => new Uri(Nav.Uri).AbsolutePath;
+}

@@ -1,0 +1,22 @@
+@page "/admin/api"
+@attribute [Authorize(Policy = AuthConstants.AdminSessionPolicy)]
+
+<PageTitle>API explorer · Admin Console</PageTitle>
+<HeadContent>
+    <link rel="stylesheet" href="/admin/api-assets/swagger-ui.css" />
+    <link rel="stylesheet" href="/admin/api-assets/explorer.css" />
+</HeadContent>
+<AdminShell>
+    <div class="link-workspace">
+        <header class="workspace-heading">
+            <div><h1>API explorer</h1><p>Browse operations, parameters, responses, and schemas.</p></div>
+            <a class="workspace-button" href="/openapi/v1.json" download="api-v1.json" data-enhance-nav="false">Download OpenAPI JSON</a>
+        </header>
+        <p id="api-explorer-notice" class="workspace-panel workspace-help" role="status">Loading the trusted API destination. Requests run on the separate API host. Mutations can change real data. Use your shared session or authorize with an API key; link edits require the documented version and idempotency headers.</p>
+        <div id="api-explorer-error" role="alert" class="workspace-alert" hidden>API documentation could not be loaded. Refresh or sign in again.</div>
+        <div id="api-explorer" aria-label="OpenAPI documentation"><p class="workspace-help">Loading API documentation…</p></div>
+        <noscript><p class="workspace-help">Enable JavaScript to browse the API explorer, or download the OpenAPI JSON above.</p></noscript>
+    </div>
+</AdminShell>
+<script src="/admin/api-assets/swagger-ui-bundle.js"></script>
+<script src="/admin/api-assets/explorer.js"></script>
