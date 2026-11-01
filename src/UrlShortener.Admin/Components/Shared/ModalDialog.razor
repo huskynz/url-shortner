@@ -1,0 +1,26 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+<dialog open class="admin-dialog @Class" aria-labelledby="@_titleId" @ref="_dialog">
+    <div class="admin-dialog-header"><h2 id="@_titleId">@Title</h2><button class="btn btn-link" type="button" aria-label="Close dialog" data-dialog-close @onclick="OnClose" disabled="@Busy"><AdminIcon Name="close" /></button></div>
+    <div class="admin-dialog-body">@ChildContent</div>
+</dialog>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public string Title { get; set; } = "Confirm action";
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public bool Busy { get; set; }
+    private readonly string _titleId = "dialog-" + Guid.NewGuid().ToString("N");
+    private ElementReference _dialog;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await JS.InvokeVoidAsync("urlShortener.openDialog", _dialog, _titleId);
+    }
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("urlShortener.restoreDialogFocus", _titleId); }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+}

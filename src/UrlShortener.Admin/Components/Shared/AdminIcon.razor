@@ -1,0 +1,15 @@
+@* Official Clarity outlines, extracted unchanged into a local sprite at build time. *@
+<svg class="admin-icon" viewBox="0 0 36 36" fill="currentColor" aria-hidden="true" focusable="false"><use href="@($"{Assets["vendor/clarity/icons.svg"]}#{Shape}")" /></svg>
+@code {
+    [Parameter] public string Name { get; set; } = "link";
+    private string Shape => Name switch
+    {
+        "chart" => "bar-chart",
+        "warning" => "exclamation-triangle",
+        "close" => "times",
+        "menu" => "bars",
+        "shield" => "shield-check",
+        "dashboard" or "users" or "key" or "code" or "logout" or "refresh" or "plus" or "arrow" or "check" or "clock" or "search" or "download" => Name,
+        _ => "link",
+    };
+}

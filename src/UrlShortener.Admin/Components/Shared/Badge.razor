@@ -1,0 +1,17 @@
+<span class="label admin-badge @ToneClass">
+    @ChildContent
+</span>
+
+@code {
+    [Parameter] public string Tone { get; set; } = "neutral";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string ToneClass => Tone switch
+    {
+        "success" => "label-success",
+        "danger" => "label-danger",
+        "warning" => "label-warning",
+        "info" => "label-info",
+        _ => "",
+    };
+}

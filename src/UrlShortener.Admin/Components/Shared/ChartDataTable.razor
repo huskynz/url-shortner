@@ -1,0 +1,48 @@
+<details class="stats-data-table">
+    <summary>@Summary</summary>
+    @if (Labels.Length != Values.Length)
+    {
+        <p role="alert">Exact values unavailable: chart labels and values do not match.</p>
+    }
+    <div class="stats-table-scroll">
+        <table>
+            <caption class="sr-only">@Title</caption>
+            <thead><tr><th scope="col">@CategoryLabel</th><th scope="col">@ValueLabel</th></tr></thead>
+            <tbody>
+                @for (var index = Start; index < End; index++)
+                {
+                    <tr><th scope="row">@Labels[index]</th><td>@Values[index].ToString("N0")</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="analytics-controls" data-chart-table-pager role="group" aria-label="@($"{Title} table pages")">
+        <button type="button" disabled="@(_page == 0)" @onclick="Previous">Previous</button>
+        <span class="stats-note" role="status">Rows @(Count == 0 ? 0 : Start + 1)–@End of @Count.ToString("N0") · all chart points retained</span>
+        <button type="button" disabled="@(End >= Count)" @onclick="Next">Next</button>
+    </div>
+</details>
+
+@code {
+    [Parameter] public string Summary { get; set; } = "View exact values";
+    [Parameter] public string Title { get; set; } = "Chart values";
+    [Parameter] public string CategoryLabel { get; set; } = "UTC date";
+    [Parameter] public string ValueLabel { get; set; } = "Visits";
+    [Parameter] public string[] Labels { get; set; } = [];
+    [Parameter] public int[] Values { get; set; } = [];
+    private const int PageSize = 100;
+    private int _page;
+    private string[]? _previousLabels;
+    private int[]? _previousValues;
+    private int Count => Labels.Length == Values.Length ? Labels.Length : 0;
+    private int Start => _page * PageSize;
+    private int End => Math.Min(Count, Start + PageSize);
+    protected override void OnParametersSet()
+    {
+        if (_previousLabels is null || _previousValues is null || !_previousLabels.SequenceEqual(Labels) || !_previousValues.SequenceEqual(Values)) _page = 0;
+        _previousLabels = Labels;
+        _previousValues = Values;
+    }
+    private void Previous() { if (_page > 0) _page--; }
+    private void Next() { if (End < Count) _page++; }
+}

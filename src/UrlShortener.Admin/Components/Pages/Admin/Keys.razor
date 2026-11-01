@@ -1,0 +1,126 @@
+@page "/admin/keys"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = AuthConstants.OwnerSessionPolicy)]
+@implements IDisposable
+@inject ApiKeyService KeysService
+@inject ApiV1Keys KeysApi
+@inject AdminActionGuard Guard
+@inject IJSRuntime JS
+@inject ILogger<Keys> Logger
+
+<PageTitle>API keys · HuskyNZ URL Shortener Admin</PageTitle>
+<AdminShell>
+    <div class="keys-workspace">
+    <PageHeader Title="API keys" Eyebrow="Access & integrations" Description="Owner-only management. Secrets are revealed once, never in listings.">
+        <Actions><button class="button-quiet" @onclick="Load" disabled="@_busy"><AdminIcon Name="refresh" />Refresh</button><button class="button-primary" @onclick="() => _createOpen = true" disabled="@_busy"><AdminIcon Name="plus" />Create API key</button></Actions>
+    </PageHeader>
+    @if (_error is not null) { <p role="alert" class="workspace-alert">@_error</p> }
+    @if (_notice is not null) { <p role="status" class="workspace-notice">@_notice</p> }
+    @if (_secret is not null)
+    {
+        <section class="key-secret" aria-label="New API key"><h2>Save this key now</h2><p>It cannot be retrieved again. Closing or leaving this page clears this display.</p><code>@_secret</code><div class="workspace-actions"><button @onclick="Copy" disabled="@_busy">Copy key</button><button @onclick="ClearSecret">Close secret</button></div></section>
+    }
+    @if (_createOpen)
+    {
+    <ModalDialog Title="Create API key" Class="dialog-wide" Busy="@_busy" OnClose="() => _createOpen = false">
+        <p class="workspace-help">Give each integration its own key. Grant only the permissions it needs.</p>
+        @if (_error is not null) { <p role="alert" class="workspace-alert">@_error</p> }
+        <div class="workspace-fields">
+        <label class="workspace-field">Name<input @bind="_name" maxlength="128" disabled="@_busy" /></label>
+        <label class="workspace-field">Expires after days (blank: no expiry)<input type="number" min="1" max="365" @bind="_days" disabled="@_busy" /></label>
+        </div>
+        <fieldset disabled="@_busy"><legend>Permissions (read-only by default)</legend>
+            <div class="permission-grid">
+            @foreach (var scope in ApiKeyService.SupportedScopes)
+            { <label class="permission-option"><input type="checkbox" aria-label="@scope" checked="@_scopes.Contains(scope)" @onchange="e => SelectScope(scope, (bool)e.Value!)" /><span><strong>@scope</strong><small>@ScopeDescription(scope)</small></span></label> }
+            </div>
+        </fieldset>
+        <div class="workspace-actions"><button @onclick="() => _createOpen = false" disabled="@_busy">Cancel</button><button class="button-primary" @onclick="Issue" disabled="@_busy">@(_busy ? "Issuing…" : "Issue key")</button></div>
+    </ModalDialog>
+    }
+    <section class="inventory-toolbar" aria-label="Find keys"><div class="account-filter"><label class="workspace-field">Name filter<input @bind="_search" maxlength="200" placeholder="Search integrations by name" disabled="@_busy" /></label><button @onclick="Filter" disabled="@_busy">Apply filter</button></div></section>
+    @if (_busy) { <p role="status">Loading…</p> }
+    <section class="key-inventory" aria-label="API key inventory">
+        <div class="inventory-row inventory-columns" aria-hidden="true"><span>Integration</span><span>Status</span><span>Expiry</span><span class="key-usage">Usage</span><span>Action</span></div>
+        @foreach (var key in _keys)
+        {
+            <article class="inventory-row"><div><h2>@key.Name</h2><small>@key.Scopes</small><details><summary>Key metadata</summary><p>Identifier: <code>@key.Id</code></p><p>Last used: @(key.LastUsed?.ToString("u") ?? "never")</p></details></div><div><Badge Tone="@(!key.IsActive ? "neutral" : key.ExpiresAt <= _observed ? "warning" : "success")">@(!key.IsActive ? "Revoked" : key.ExpiresAt <= _observed ? "Expired" : "Active")</Badge></div><div class="key-expiry"><p>@(key.ExpiresAt is null ? "No expiry" : key.ExpiresAt.Value.ToString("dd MMM yyyy"))</p>@if (key.ExpiresAt is not null) { <small>@key.ExpiresAt.Value.ToString("HH:mm") UTC</small> }</div><div class="key-usage"><p>@key.UseCount.ToString("N0") uses</p></div><div class="key-revoke"><button class="button-danger" @onclick="() => _revoke = key" disabled="@(_busy || !key.IsActive)">Revoke</button></div></article>
+        }
+    @if (!_busy && _error is null && _keys.Count == 0) { <div class="admin-empty"><AdminIcon Name="key" /><h2>No matching keys.</h2><p>Try another name or create a key for your first integration.</p></div> }
+    </section>
+    <div class="workspace-pagination"><button @onclick="Previous" disabled="@(_busy || _page == 1)">Previous</button><span>Page @_page @if (_error is null) { <span>· @_total keys</span> }</span><button @onclick="Next" disabled="@(_busy || !_next || _error is not null)">Next</button></div>
+    @if (_error is null && _observed != default) { <p class="inventory-freshness">Inventory checked @_observed.ToString("u") UTC</p> }
+    @if (_revoke is not null)
+    { <ModalDialog Title="Revoke API key?" Busy="@_busy" OnClose="() => _revoke = null"><section role="alert" aria-label="Confirm key revocation"><h2>Revoke @_revoke.Name?</h2><p>Clients using this key will lose access. This cannot be undone.</p>@if (_error is not null) { <p class="workspace-alert">@_error</p> }<div class="workspace-actions"><button @onclick="() => _revoke = null" disabled="@_busy">Cancel</button><button class="button-danger" @onclick="Revoke" disabled="@_busy">Confirm revocation</button></div></section></ModalDialog> }
+    </div>
+</AdminShell>
+
+@code {
+    private List<ApiKeyListItem> _keys = [];
+    private readonly HashSet<string> _scopes = ["urls:read"];
+    private string _name = "", _search = "", _appliedSearch = "";
+    private string? _secret, _error, _notice;
+    private int? _days = 90;
+    private int _page = 1, _total;
+    private bool _busy, _next, _disposed;
+    private bool _createOpen;
+    private static string ScopeDescription(string scope) => scope.EndsWith(":read") ? "View data without changing it" : scope.EndsWith(":write") ? "Create and update data" : "Privileged integration access";
+    private DateTimeOffset _observed;
+    private ApiKeyListItem? _revoke;
+    protected override Task OnInitializedAsync() => Load();
+    private void SelectScope(string scope, bool selected) { if (selected) _scopes.Add(scope); else _scopes.Remove(scope); }
+    private void ClearSecret() { _secret = null; _notice = null; }
+    public void Dispose() { _disposed = true; ClearSecret(); }
+    private async Task Load()
+    {
+        if (_busy || _disposed) return;
+        _busy = true; _error = null;
+        try
+        {
+            var result = await Guard.RunOwner("api-key.list", "keys", _ => KeysService.GetPageAsync(_page, 50, _appliedSearch));
+            _keys = result.Items; _total = result.Total; _next = result.HasNext; _observed = DateTimeOffset.UtcNow;
+        }
+        catch (Exception ex) { _keys = []; ClearSecret(); _error = SafeUiError.Report(ex, Logger, "api-keys", "Keys could not be loaded. Refresh or sign in again."); }
+        finally { _busy = false; }
+    }
+    private Task Filter() { _page = 1; _appliedSearch = _search; return Load(); }
+    private Task Previous() { if (!_busy && _page > 1) _page--; return Load(); }
+    private Task Next() { if (!_busy && _next) _page++; return Load(); }
+    private async Task Issue()
+    {
+        if (_busy || _disposed) return;
+        ClearSecret(); _error = null;
+        if (_days is < 1 or > 365) { _error = "Expiry must be 1–365 days, or blank."; return; }
+        _busy = true;
+        try
+        {
+            var result = await Guard.RunOwner("api-key.issue", "keys", async _ =>
+            {
+                var issued = await KeysService.CreateFullAsync(_name, _days is null ? null : $"{_days}d", scopes: string.Join(' ', _scopes.Order()));
+                if (!issued.Ok) throw new ApiFault(issued.Status, "key_issue_failed", "Choose a valid name, scopes and expiry.");
+                return issued;
+            }, mutation: true);
+            if (!_disposed) _secret = result.Value;
+            _name = "";
+            _createOpen = false;
+        }
+        catch (Exception ex) { _error = SafeUiError.Report(ex, Logger, "api-key.issue", "Key could not be issued. Refresh and try again."); }
+        finally { _busy = false; }
+        if (_error is null) await Load();
+    }
+    private async Task Revoke()
+    {
+        if (_busy || _revoke is null) return;
+        _busy = true; _error = null; ClearSecret();
+        try { await Guard.RunOwner("api-key.revoke", _revoke.Id.ToString(), async _ => { await KeysApi.Revoke(_revoke.Id, default); return true; }, mutation: true); _revoke = null; }
+        catch (Exception ex) { _error = SafeUiError.Report(ex, Logger, "api-key.revoke", "Key could not be revoked. Refresh and try again."); }
+        finally { _busy = false; }
+        if (_error is null) await Load();
+    }
+    private async Task Copy()
+    {
+        if (_secret is null) return;
+        try { _notice = await JS.InvokeAsync<bool>("urlShortener.copyText", _secret) ? "Key copied." : "Copy failed. Check clipboard permissions."; }
+        catch { _notice = "Clipboard unavailable. Copy the displayed key manually."; }
+    }
+}

@@ -1,0 +1,10 @@
+<div class="workspace-heading">
+    <div><p class="admin-eyebrow">@Eyebrow</p><h1>@Title</h1><p>@Description</p></div>
+    @if (Actions is not null) { <div class="page-header-actions">@Actions</div> }
+</div>
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public string Eyebrow { get; set; } = "Admin";
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

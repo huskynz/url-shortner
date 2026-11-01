@@ -1,0 +1,174 @@
+@page "/admin/urls"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = AuthConstants.AdminSessionPolicy)]
+@inject ApiV1Links Links
+@inject ApiV1Schedules Schedules
+@inject ApiV1Operations Operations
+@inject UrlAdminService UrlAdmin
+@inject AdminActionGuard Guard
+@inject IJSRuntime JS
+@inject IOptions<UrlShortenerOptions> Options
+@inject ILogger<Urls> Logger
+
+<PageTitle>Links · HuskyNZ URL Shortener Admin</PageTitle>
+<AdminShell>
+    <div class="link-workspace">
+        <PageHeader Title="Links" Description="Manage destinations without changing your public aliases.">
+            <Actions><button class="button-quiet" @onclick="RefreshWorkspace" disabled="@(_loading || _acting)"><AdminIcon Name="refresh" />Refresh</button>@if (_selected is null) { <button class="button-primary" @onclick="() => _createOpen = true" disabled="@_acting"><AdminIcon Name="plus" />Create a short link</button> }</Actions>
+        </PageHeader>
+        @if (_actionError is not null) { <p role="alert" class="workspace-alert">@_actionError</p> }
+        @if (_notice is not null) { <p role="status" class="workspace-notice">@_notice</p> }
+        @if (_selected is null)
+        {
+        <div class="workspace-metrics">
+            <div class="workspace-panel"><p>Links on this page</p><strong>@_urls.Count</strong></div>
+            <div class="workspace-panel"><p>Available on this page</p><strong>@_urls.Count(u => u.Availability is "redirect" or "password_required")</strong></div>
+            <div class="workspace-panel"><p>Private on this page</p><strong>@_urls.Count(u => u.Private)</strong></div>
+        </div>
+        @if (_createOpen)
+        {
+        <ModalDialog Title="Create a short link" Class="dialog-wide" Busy="@_acting" OnClose="() => _createOpen = false">
+            @if (_actionError is not null) { <p role="alert" class="workspace-alert">@_actionError</p> }
+            <div class="workspace-fields" style="margin-top:16px">
+                <label class="workspace-field">Short path (blank generates one)<input @bind="_newShortPath" maxlength="128" placeholder="launch-week" disabled="@_acting" /></label>
+                <label class="workspace-field">Destination URL<input type="url" @bind="_newRedirect" placeholder="https://example.com" disabled="@_acting" /></label>
+                <label class="workspace-check"><input type="checkbox" @bind="_newPrivate" disabled="@_acting" /> Require a password</label>
+                <label class="workspace-check"><input type="checkbox" @bind="_newListed" disabled="@_acting" /> Show in public directory</label>
+                <label class="workspace-field">Password<input type="@(_showNewPassword ? "text" : "password")" @bind="_newPassword" autocomplete="new-password" disabled="@(!_newPrivate || _acting)" maxlength="@PrivateLinkPassword.MaxLength" /></label>
+            </div>
+            <div class="workspace-actions">
+                <button @onclick="AutomaticPath" disabled="@_acting">Use automatic path</button>
+                <button @onclick="QuickPassword" disabled="@_acting">Generate password</button>
+                <button @onclick="() => _showNewPassword = !_showNewPassword" disabled="@(!_newPrivate || _acting)" aria-pressed="@_showNewPassword.ToString().ToLowerInvariant()">@(_showNewPassword ? "Hide password" : "Show password")</button>
+                <button class="button-primary" @onclick="Create" disabled="@_acting">@(_acting ? "Saving…" : "Create link")</button>
+            </div>
+        </ModalDialog>
+        }
+        @if (_createdLink is not null)
+        { <section class="workspace-panel" role="status"><h2>Created /@_createdLink.ShortPath</h2><p>@_createdLink.ShortUrl</p><button @onclick="() => Copy(_createdLink.ShortPath)">Copy created short URL</button><p>Generated aliases are not passwords or access controls.</p></section> }
+        <section class="inventory-toolbar" aria-label="Link filters">
+            <div class="workspace-filters">
+                <label class="workspace-field">Search<input @bind="_search" maxlength="200" placeholder="Alias or destination" disabled="@(_loading || _acting)" /></label>
+                <label class="workspace-field">Status<select @bind="_statusFilter" disabled="@(_loading || _acting)"><option value="all">All statuses</option><option value="active">Available now</option><option value="scheduled">Upcoming</option><option value="expired">Expired</option><option value="quota_exhausted">Quota exhausted</option><option value="expiring">Expiring within 7 days</option><option value="near_quota">Low quota</option><option value="deprecated">Deprecated</option><option value="archived">Archived</option></select></label>
+                <label class="workspace-field">Privacy<select @bind="_privacyFilter" disabled="@(_loading || _acting)"><option value="all">Any privacy</option><option value="public">Public</option><option value="private">Private</option></select></label>
+                <button class="workspace-button" @onclick="ApplyFilters" disabled="@(_loading || _acting)">Apply filters</button>
+            </div>
+        </section>
+        @if (FiltersPending) { <p role="status" class="workspace-help">Filter changes are not applied. Pagination uses the previous filters.</p> }
+        @if (_loading) { <p role="status" class="workspace-help">Loading links…</p> }
+        else if (_error is not null)
+        {
+            <div role="alert" class="workspace-alert">@_error <button class="workspace-button" @onclick="Load">Try again</button></div>
+        }
+        else if (_urls.Count == 0) { <p class="workspace-panel workspace-help">No matching links. Change the filters or create your first link.</p> }
+        else
+        {
+                <section class="bulk-toolbar" aria-label="Bulk link actions">
+                    <div class="bulk-selection">
+                    <label class="workspace-check"><input type="checkbox" checked="@(_urls.Count > 0 && _selection.Count == _urls.Count)" @onchange="e => SelectPage((bool)e.Value!)" disabled="@_acting" /> Select current page only</label>
+                    <span>@_selection.Count selected</span>
+                    </div><div class="admin-inline-actions">
+                    <label class="workspace-field">Bulk operation<select @bind="_bulkAction" disabled="@_acting"><option value="deprecate">Deprecate</option><option value="activate">Reactivate</option><option value="archive">Archive</option><option value="restore">Restore</option></select></label>
+                    <button @onclick="PrepareBulk" disabled="@(_acting || _selection.Count == 0)">Review selected action</button>
+                    </div>
+                </section>
+                <div class="inventory-caption"><span>Selection clears on page, filter or inventory refresh. Maximum 200 links; no action targets unseen filter matches.</span></div>
+            <div class="link-grid">
+                @foreach (var url in _urls)
+                {
+                    <article class="link-card @(_selection.ContainsKey(url.Id) ? "is-selected" : "")" @key="url.Id">
+                        <input type="checkbox" aria-label="Select /@url.ShortPath" checked="@_selection.ContainsKey(url.Id)" @onchange="e => SelectLink(url, (bool)e.Value!)" disabled="@_acting" />
+                        <div>
+                        <h2>/@url.ShortPath</h2>
+                        <p class="link-destination">@url.DestinationUrl</p>
+                        <div class="link-tags"><Badge Tone="@(url.Availability is "redirect" or "password_required" ? "success" : "neutral")">@url.Availability.Replace('_', ' ')</Badge><Badge>@(url.Private ? "Password protected" : "Public")</Badge><Badge>@(url.Listed ? "Listed" : "Unlisted")</Badge>@if (url.Expiring) { <Badge Tone="warning">Expiring within 7 days</Badge> }@if (url.NearQuota) { <Badge Tone="warning">@(url.UsageQuota - url.UsageCount) admissions remaining</Badge> }</div>
+                        <details class="link-metadata"><summary>Limits & timestamps</summary><p>Version @url.Version · @url.UsageCount uses@(url.UsageQuota is null ? "" : $" / {url.UsageQuota} quota")</p><p>Availability and limits checked @url.ObservedAt.ToString("u") UTC. Refresh for current admissions.</p>@if (url.ScheduleStart is not null) { <p>Available from @url.ScheduleStart.Value.ToString("u") UTC</p> }@if (url.ScheduleEnd is not null) { <p>Available until @url.ScheduleEnd.Value.ToString("u") UTC</p> }</details>
+                        </div>
+                        <div class="link-usage"><strong>@url.UsageCount.ToString("N0")</strong>@(url.UsageQuota is null ? "admissions" : $"of {url.UsageQuota} quota")</div>
+                        <div class="workspace-actions">
+                            <button @onclick="() => Copy(url.ShortPath)" disabled="@_acting">Copy</button>
+                            <button class="button-primary" @onclick="() => Open(url.Id)" disabled="@_acting">Manage</button>
+                            <a class="workspace-button" href="@($"/admin/urls/{Uri.EscapeDataString(url.ShortPath)}/analytics")">Analytics</a>
+                            <details class="link-secondary-actions"><summary>More</summary><div class="workspace-actions">
+                            <button @onclick="() => ShowQr(url)" disabled="@_acting">QR code</button>
+                            <button @onclick="() => ToggleArchive(url)" disabled="@_acting">@(url.Archived ? "Restore" : "Archive")</button>
+                            </div></details>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+        @if (_qr is not null && _qrLink is not null)
+        { <ModalDialog Title="Short-link QR code" OnClose="CloseQr"><section aria-label="Public short-link QR"><h2>QR for /@_qrLink.ShortPath</h2><p>@_qrLink.ShortUrl</p><p class="workspace-help">@_qrLink.Availability.Replace('_', ' ') · scanning still uses the normal admission/password gate.</p><img src="@_qr" alt="QR encoding the displayed Public short URL" style="max-width:100%;width:320px;background:white;margin:20px auto" /><div class="workspace-actions"><a class="workspace-button" href="@_qr" download="@($"short-link-{_qrLink.Id:N}.png")">Download PNG</a><button @onclick="CloseQr">Close QR</button></div></section></ModalDialog> }
+        @if (_bulkPreview is not null)
+        { <ModalDialog Title="Review bulk operation" Busy="@_acting" OnClose="CancelBulk"><section role="alert" aria-label="Confirm bulk operation"><h2>Confirm @_preparedAction for @_bulkCount selected links?</h2><p>Only the reviewed versions are eligible. Conflicting links will not be overwritten.</p>@if (_actionError is not null) { <p class="workspace-alert">@_actionError</p> }<div class="workspace-actions"><button @onclick="CancelBulk" disabled="@_acting">Cancel</button><button class="button-primary" @onclick="ConfirmBulk" disabled="@_acting">Confirm @_preparedAction</button></div></section></ModalDialog> }
+        @if (_bulkOperation is not null)
+        { <section class="workspace-panel" aria-label="Bulk operation results"><h2>Bulk operation: @_bulkOperation.Status.Replace('_', ' ')</h2><button @onclick="CheckBulk" disabled="@_acting">Refresh operation results</button><ul>@foreach (var result in _bulkOperation.Results) { <li>Link @result.Id: @result.Code (@result.Status)</li> }</ul><p>Conflicting targets are unchanged. Reload their current versions and select only unresolved targets for a new review.</p></section> }
+        <div class="workspace-pagination">
+            <button class="workspace-button" @onclick="PreviousPage" disabled="@(_loading || _acting || _page == 1)">Previous</button>
+            <span>Page @_page · @_total matching links</span>
+            <button class="workspace-button" @onclick="NextPage" disabled="@(_loading || _acting || !_hasNext)">Next</button>
+        </div>
+        }
+        @if (_selected is not null)
+        {
+            <section class="workspace-panel" aria-label="Manage selected link">
+                <div class="workspace-heading"><div><h2>Manage /@_selected.ShortPath</h2><p>Public alias is unchanged. Editing version @_selected.Version.</p></div><button class="workspace-button" @onclick="Close" disabled="@_acting">Back to inventory</button></div>
+                <div class="workspace-fields">
+                    <label class="workspace-field">Destination URL<input type="url" @bind="_editDestination" disabled="@_acting" /></label>
+                    <label class="workspace-field">New password (blank keeps existing)<input type="password" @bind="_editPassword" autocomplete="new-password" maxlength="@PrivateLinkPassword.MaxLength" disabled="@(!_editPrivate || _acting)" /></label>
+                    <label class="workspace-check"><input type="checkbox" @bind="_editPrivate" disabled="@_acting" /> Require password</label>
+                    <label class="workspace-check"><input type="checkbox" @bind="_editListed" disabled="@_acting" /> Show in public directory</label>
+                    <label class="workspace-check"><input type="checkbox" @bind="_editDeprecated" disabled="@_acting" /> Deprecated</label>
+                    <label class="workspace-field">Usage quota (blank clears)<input type="number" min="1" @bind="_editQuota" disabled="@_acting" /></label>
+                    <label class="workspace-field">Available from (UTC)<input type="datetime-local" @bind="_editStart" disabled="@_acting" /></label>
+                    <label class="workspace-field">Available until (UTC)<input type="datetime-local" @bind="_editEnd" disabled="@_acting" /></label>
+                </div>
+                <div class="workspace-actions"><button @onclick="Save" disabled="@_acting">Save changes</button><button @onclick="() => Open(_selected.Id)" disabled="@_acting">Reload current version</button><button @onclick="Check" disabled="@_acting">Check availability</button></div>
+                <div class="workspace-actions"><button @onclick="ClearScheduleDraft" disabled="@_acting">Clear availability window</button><button @onclick="() => _editQuota = null" disabled="@_acting">Clear quota</button><button @onclick="() => Open(_selected.Id)" disabled="@_acting">Cancel draft changes</button></div>
+                <p class="workspace-help">Clearing both availability dates removes the window. Archive stops redirects without freeing the alias. Unlisted links still resolve.</p>
+                @if (_detailError is not null) { <p role="alert" class="workspace-alert">@_detailError</p> }
+                <div class="workspace-history">
+                    <h2>Destination history</h2>
+                    <p class="workspace-help">Restoring a revision changes only the destination, not password or other settings.</p>
+                    <ul>
+                        @foreach (var revision in _history)
+                        {
+                            <li>Version @revision.Version · @revision.CreatedAt.ToString("u")<p class="link-destination">@revision.DestinationUrl</p><button class="workspace-button" @onclick="() => RestoreRevision(revision.Id)" disabled="@_acting">Restore destination</button></li>
+                        }
+                    </ul>
+                    @if (_history.Count == 0) { <p class="workspace-help">No recorded revisions.</p> }
+                    <div class="workspace-actions"><button @onclick="HistoryPrevious" disabled="@(_acting || _historyPage == 1)">Previous revisions</button><span class="workspace-help">@_historyTotal revisions</span><button @onclick="HistoryNext" disabled="@(_acting || !_historyNext)">Next revisions</button></div>
+                </div>
+                <div class="workspace-history">
+                    <h2>Scheduled destination changes</h2>
+                    <p class="workspace-help">Times are UTC. At/after the boundary, admission first applies due changes; a racing request fails safely and can retry. One pending change per link: cancel before scheduling a replacement. Later edits/archive/restore put old work into conflict; the creator must retain permission.</p>
+                    <div class="workspace-fields">
+                        <label class="workspace-field">Future destination<input type="url" @bind="_scheduleDestination" disabled="@_acting" /></label>
+                        <label class="workspace-field">Run at (UTC)<input type="datetime-local" @bind="_scheduleAt" disabled="@_acting" /></label>
+                    </div>
+                    <div class="workspace-actions"><button @onclick="CreateSchedule" disabled="@(_acting || _selected.Archived)">Schedule change</button></div>
+                    <ul>
+                        @foreach (var change in _schedules)
+                        {
+                            <li>@change.RunAt.ToString("u") · @change.Status · expected version @change.ExpectedVersion<p class="link-destination">@change.DestinationUrl</p>@if (change.Status == "pending") { <button class="workspace-button" @onclick="() => PrepareReplacement(change)" disabled="@_acting">Edit by replacement</button><button class="workspace-button" @onclick="() => CancelSchedule(change.Id)" disabled="@_acting">Cancel change</button> }</li>
+                        }
+                    </ul>
+                    @if (_schedules.Count == 0) { <p class="workspace-help">No scheduled changes.</p> }
+                    <div class="workspace-actions"><button @onclick="SchedulesPrevious" disabled="@(_acting || _schedulePage == 1)">Previous changes</button><span class="workspace-help">@_scheduleTotal changes</span><button @onclick="SchedulesNext" disabled="@(_acting || !_scheduleNext)">Next changes</button></div>
+                </div>
+                <details class="workspace-history"><summary>Advanced: permanent deletion</summary><p class="workspace-help">Use archive instead wherever possible. Permanent deletion cannot be undone and frees the alias for reuse.</p><div class="workspace-actions"><button class="workspace-danger" @onclick="() => _pendingDelete = _selected" disabled="@_acting">Permanently delete</button></div></details>
+            </section>
+        }
+        @if (_pendingDelete is not null)
+        {
+            <ModalDialog Title="Permanently delete link?" Busy="@_acting" OnClose="CancelDelete"><section role="alert" aria-label="Confirm permanent deletion">
+                <h2>Permanently delete /@_pendingDelete.ShortPath?</h2>
+                <p class="workspace-help">This cannot be undone. Type the alias without the slash to confirm.</p>
+                <label class="workspace-field">Alias confirmation<input @bind="_deleteConfirmation" disabled="@_acting" /></label>
+                @if (_actionError is not null) { <p class="workspace-alert">@_actionError</p> }
+                <div class="workspace-actions"><button @onclick="CancelDelete" disabled="@_acting">Cancel</button><button class="workspace-danger" @onclick="ConfirmDelete" disabled="@(_acting || _deleteConfirmation != _pendingDelete.ShortPath)">Delete permanently</button></div>
+            </section></ModalDialog>
+        }
+    </div>
+</AdminShell>

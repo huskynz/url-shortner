@@ -1,0 +1,46 @@
+@using System.Globalization
+
+<section class="stats-card">
+    <div class="stats-card-heading"><div><p class="stats-eyebrow">Breakdown</p><h2>@Title</h2></div><span class="stats-badge">@Total.ToString("N0") visits</span></div>
+    @if (_rows.Count > 0)
+    {
+        <AnalyticsCanvas Kind="doughnut" Labels="_labels" Values="_values" Label="@($"{Title}: visit distribution")" CategoryControls="true">
+            <table class="stats-legend">
+                <caption class="sr-only">@Title visit counts and share of all selected visits</caption>
+                <thead class="sr-only"><tr><th scope="col">Category</th><th scope="col">Visits</th><th scope="col">Share</th></tr></thead>
+                <tbody>
+                    @for (var index = 0; index < _rows.Count; index++)
+                    {
+                        var row = _rows[index];
+                        <tr>
+                            <th scope="row"><button type="button" data-chart-category="@index" aria-pressed="true" title="Show or hide @DisplayName(row) in this chart"><i class="stats-dot" style="background:var(--chart-color-@index)"></i><span>@DisplayName(row)</span></button></th>
+                            <td>@row.Count.ToString("N0")</td><td>@Share(row.Count)%</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </AnalyticsCanvas>
+        <p class="stats-note">Click a chart segment or category name to show or hide it. Counts and shares in the table always include every visit.</p>
+    }
+    else
+    {
+        <div class="stats-empty"><strong>No category data yet</strong><p>Recorded visits will populate this breakdown.</p></div>
+    }
+</section>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Browsers";
+    [Parameter] public List<NamedCount>? Data { get; set; }
+    [Parameter] public int Total { get; set; }
+    private List<NamedCount> _rows = [];
+    private string[] _labels = [];
+    private int[] _values = [];
+    protected override void OnParametersSet()
+    {
+        _rows = AnalyticsGroups.Compact(Data, 6);
+        _labels = _rows.Select(DisplayName).ToArray();
+        _values = _rows.Select(r => r.Count).ToArray();
+    }
+    private static string DisplayName(NamedCount row) => row.IsOther ? "Other categories" : string.IsNullOrWhiteSpace(row.Name) ? "Unknown" : row.Name;
+    private string Share(int count) => (Total > 0 ? 100d * count / Total : 0).ToString("0.#", CultureInfo.InvariantCulture);
+}

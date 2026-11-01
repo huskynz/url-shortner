@@ -1,0 +1,16 @@
+@page "/Error"
+@using System.Diagnostics
+<PageTitle>Error · HuskyNZ URL Shortener Admin</PageTitle>
+<main class="admin-failure-page">
+    <AdminIcon Name="warning" />
+    <h1>Something went wrong</h1>
+    <p>An error occurred while processing your request. Try again, or share the request ID with your administrator.</p>
+    @if (ShowRequestId) { <p><strong>Request ID:</strong> <code>@RequestId</code></p> }
+    <div class="workspace-actions"><a class="workspace-button button-primary" href="/admin/dashboard">Back to dashboard</a><a class="workspace-button" href="/signin">Sign in again</a></div>
+</main>
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+    protected override void OnInitialized() => RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

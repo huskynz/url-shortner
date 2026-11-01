@@ -1,0 +1,360 @@
+@page "/admin/users"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = AuthConstants.AdminSessionPolicy)]
+@inject AdminService AdminSvc
+@inject AdminActionGuard Guard
+@inject ILogger<Users> Logger
+@using System.Security.Claims
+
+<PageTitle>Users · HuskyNZ URL Shortener Admin</PageTitle>
+
+<AdminShell>
+    <div class="account-workspace">
+        <PageHeader Title="User management" Eyebrow="Accounts" Description="Manage administrator accounts and roles. Account changes are owner-only.">
+            <Actions><button class="button-quiet" @onclick="Load" disabled="@(_loading || _acting)"><AdminIcon Name="refresh" />Refresh</button>@if (_isOwner) { <button class="button-primary" @onclick="() => _createOpen = true" disabled="@_acting"><AdminIcon Name="plus" />Create account</button> }</Actions>
+        </PageHeader>
+        @if (_actionError is not null && !_createOpen) { <p role="alert" class="workspace-alert">@_actionError</p> }
+        @if (_notice is not null) { <div role="status" class="workspace-notice">@_notice <button class="button-quiet" @onclick="() => _notice = null">Dismiss</button></div> }
+
+        <div>
+            @if (_isOwner && _createOpen)
+            {
+                <ModalDialog Title="Create account" Busy="@_acting" OnClose="() => _createOpen = false">
+                        <p class="workspace-help">Share the temporary password securely. New users can update their credentials from My account.</p>
+                        <div class="space-y-3">
+                            <div class="space-y-1">
+                                <label class="workspace-field">Email<input type="email" @bind="_newEmail" disabled="@_acting" autocomplete="off" /></label>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="workspace-field" for="new-user-password">Temporary password</label>
+                                <div class="flex gap-2">
+                                    <input id="new-user-password" type="text" @bind="_newPassword" disabled="@_acting" minlength="@AdminPassword.MinLength" maxlength="@AdminPassword.MaxLength" autocomplete="new-password" />
+                                    <button type="button" @onclick="() => _newPassword = RandomString(12)" disabled="@_acting">Generate</button>
+                                </div>
+                            </div>
+                            <div class="space-y-1">
+                                <p class="workspace-field">Role</p>
+                                <div class="admin-inline-actions" role="group" aria-label="New account role">
+                                    @foreach (var r in Roles)
+                                    {
+                                        <button type="button" @onclick="() => _newRole = r" disabled="@_acting" aria-pressed="@(_newRole == r)" class="@(_newRole == r ? "button-primary" : "")">@r</button>
+                                    }
+                                </div>
+                            </div>
+                            @if (_actionError is not null)
+                            {
+                                <p role="alert" class="workspace-alert">@_actionError</p>
+                            }
+                            <div class="workspace-actions">
+                                <button @onclick="() => _createOpen = false" disabled="@_acting">Cancel</button>
+                                <button @onclick="Create" disabled="@_acting" class="button-primary">
+                                    @(_acting ? "Creating..." : "Create user")
+                                </button>
+                            </div>
+                        </div>
+                </ModalDialog>
+            }
+
+            <div class="space-y-4">
+                <div class="workspace-panel space-y-3">
+                    <div class="flex flex-col gap-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div class="space-y-1">
+                                <h2 class="text-lg font-semibold text-white">Users</h2>
+                                <p class="text-sm text-slate-400">Search, filter, and update access quickly.</p>
+                            </div>
+                        </div>
+                        <div class="account-filter">
+                            <label class="workspace-field">Search
+                                <input @bind="_search" @bind:event="oninput" placeholder="Search by email or role"
+                                       disabled="@(_loading || _acting)" />
+                            </label>
+                            <div class="role-filters" role="group" aria-label="Filter by role">
+                                @foreach (var r in RoleFilters)
+                                {
+                                    <button @onclick="() => _roleFilter = r" disabled="@(_loading || _acting)" aria-pressed="@(_roleFilter == r)" class="@(_roleFilter == r ? "button-primary" : "button-quiet")">@r</button>
+                                }
+                            </div>
+                            <button @onclick="ApplyFilters" disabled="@(_loading || _acting)">Apply filters</button>
+                        </div>
+                    </div>
+
+                    @if (FiltersPending) { <p role="status" class="workspace-help">Filter changes are not applied. Pagination uses the previous filters.</p> }
+                    @if (_loading)
+                    {
+                        <p class="text-slate-400 text-sm">Loading users...</p>
+                    }
+                    else if (_error is not null)
+                    {
+                        <p role="alert" class="workspace-alert">@_error <button @onclick="Load">Try again</button></p>
+                    }
+                    else if (Filtered().Count == 0)
+                    {
+                        <p class="text-slate-400 text-sm">No users.</p>
+                    }
+                    else
+                    {
+                        <div class="key-inventory">
+                            <div class="divide-y divide-[#2d2d2d]">
+                                @foreach (var admin in Filtered())
+                                {
+                                    var currentRole = admin.Role ?? "viewer";
+                                    var staged = _roleDrafts.TryGetValue(admin.Email!, out var d) ? d : currentRole;
+                                    <div class="user-row">
+                                        <div class="space-y-1">
+                                            <p class="text-white font-semibold break-all">@admin.Email</p>
+                                            <p class="text-xs text-slate-500 capitalize">Current: @currentRole</p>
+                                        </div>
+                                        <div class="user-role">
+                                            <Badge Tone="@(currentRole == "owner" ? "info" : currentRole == "admin" ? "success" : "neutral")">@currentRole</Badge>
+                                            @if (_isOwner)
+                                            {
+                                                <select aria-label="Role for @admin.Email" value="@staged" @onchange="e => StageRole(admin.Email!, e.Value?.ToString() ?? currentRole)" disabled="@_acting">
+                                                    @foreach (var r in Roles)
+                                                    {
+                                                        <option value="@r">@r</option>
+                                                    }
+                                                </select>
+                                            }
+                                        </div>
+                                        <div class="user-actions">
+                                            @if (_isOwner)
+                                            {
+                                                <button @onclick="() => UpdateRole(admin.Email!, staged)" disabled="@(staged == currentRole || _acting)"
+                                                        class="@(staged != currentRole ? "button-primary" : "button-quiet")">
+                                                    @(staged != currentRole ? "Update role" : "Up to date")
+                                                </button>
+                                                <button @onclick="() => OpenReset(admin.Email!)" disabled="@_acting"
+                                                        class="inline-flex items-center gap-2 px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-xs text-[#e6e6e6] hover:bg-[#222] transition disabled:opacity-50">Reset password</button>
+                                                <button @onclick="() => _pendingDelete = admin.Email" disabled="@_acting"
+                                                        class="button-danger">Remove</button>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_pendingDelete is not null)
+    {
+        <ModalDialog Title="Remove account?" Busy="@_acting" OnClose="() => _pendingDelete = null">
+            <div class="space-y-3">
+                <p class="text-lg font-semibold text-white">Remove @_pendingDelete?</p>
+                <p class="text-sm text-slate-300">This user will lose access immediately.</p>
+                <div class="flex justify-end gap-2">
+                    <button @onclick="() => _pendingDelete = null" class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-sm text-[#e6e6e6] hover:bg-[#242424] transition">Cancel</button>
+                    <button @onclick="ConfirmDelete" disabled="@_acting" class="px-3 py-2 rounded-sm border border-rose-500/60 bg-rose-500/10 text-sm text-rose-100 hover:bg-rose-500/20 transition disabled:opacity-60">Delete</button>
+                </div>
+            </div>
+        </ModalDialog>
+    }
+
+    @if (_resetOpen)
+    {
+        <ModalDialog Title="Reset password" Busy="@_resetSaving" OnClose="() => _resetOpen = false">
+            <div class="space-y-3">
+                <div class="space-y-1">
+                    <p class="text-lg font-semibold text-white">Reset password</p>
+                    <p class="text-sm text-slate-300 break-all">@_resetEmail</p>
+                </div>
+                <div class="space-y-1">
+                    <label class="workspace-field" for="reset-user-password">Temporary password</label>
+                    <div class="flex gap-2">
+                        <input id="reset-user-password" @bind="_resetPassword" disabled="@_resetSaving" minlength="@AdminPassword.MinLength" maxlength="@AdminPassword.MaxLength" autocomplete="new-password" />
+                        <button type="button" @onclick="() => _resetPassword = RandomString(14)" class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-xs text-[#f0f0f0] hover:bg-[#222] transition">Shuffle</button>
+                    </div>
+                </div>
+                @if (_resetError is not null)
+                {
+                    <p class="text-sm text-rose-300">@_resetError</p>
+                }
+                <div class="flex justify-end gap-2">
+                    <button @onclick="() => _resetOpen = false" class="px-3 py-2 rounded-sm border border-[#3a3a3a] bg-[#1b1b1b] text-sm text-[#e6e6e6] hover:bg-[#242424] transition">Cancel</button>
+                    <button @onclick="ConfirmReset" disabled="@_resetSaving" class="inline-flex items-center gap-2 px-3 py-2 rounded-sm border border-[#4a4a4a] bg-[#1f1f1f] text-sm text-[#e6e6e6] hover:bg-[#262626] transition disabled:opacity-50">@(_resetSaving ? "Saving..." : "Save")</button>
+                </div>
+            </div>
+        </ModalDialog>
+    }
+
+    <div class="workspace-pagination">
+        <button @onclick="PreviousPage" disabled="@(_loading || _acting || _page == 1)">Previous</button>
+        <span>Page @_page · @_total matching users</span>
+        <button @onclick="NextPage" disabled="@(_loading || _acting || !_hasNext)">Next</button>
+    </div>
+</AdminShell>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private static readonly string[] Roles = { "viewer", "admin", "owner" };
+    private static readonly string[] RoleFilters = { "all", "viewer", "admin", "owner" };
+
+    private List<AdminListItem> _admins = new();
+    private int _page = 1, _total;
+    private bool _hasNext;
+    private string _appliedSearch = "", _appliedRole = "all";
+    private bool _fetching;
+    private bool FiltersPending => _search != _appliedSearch || _roleFilter != _appliedRole;
+    private Task ApplyFilters() => _acting ? Task.CompletedTask : LoadPage(1, apply: true);
+    private async Task PreviousPage() { if (_page > 1 && !_acting) await LoadPage(_page - 1); }
+    private async Task NextPage() { if (_hasNext && !_acting) await LoadPage(_page + 1); }
+    private bool _isOwner;
+    private bool _loading = true;
+    private bool _acting;
+    private bool _createOpen;
+    private string? _error;
+    private string? _actionError;
+    private string? _notice;
+    private string _search = string.Empty;
+    private string _roleFilter = "all";
+    private Dictionary<string, string> _roleDrafts = new();
+
+    private string _newEmail = string.Empty;
+    private string _newPassword = string.Empty;
+    private string _newRole = "admin";
+
+    private string? _pendingDelete;
+    private bool _resetOpen;
+    private string _resetEmail = string.Empty;
+    private string _resetPassword = string.Empty;
+    private string? _resetError;
+    private bool _resetSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            _isOwner = state.User.FindFirstValue(ClaimTypes.Role) == "owner";
+        }
+        await Load();
+    }
+
+    private Task Load() => LoadPage(_page);
+    private async Task LoadPage(int page, bool apply = false)
+    {
+        if (_fetching) return;
+        _fetching = true;
+        _loading = true;
+        var search = apply ? _search : _appliedSearch;
+        var role = apply ? _roleFilter : _appliedRole;
+        StateHasChanged();
+        try
+        {
+            var result = await Guard.Run("account.list", "accounts", _ => AdminSvc.GetPageAsync(page, 50, search, role));
+            var lastPage = Math.Max(1, (int)Math.Ceiling(result.Total / 50d));
+            if (page > lastPage)
+            {
+                page = lastPage;
+                result = await Guard.Run("account.list", "accounts", _ => AdminSvc.GetPageAsync(page, 50, search, role));
+            }
+            _admins = result.Items;
+            _page = page; _appliedSearch = search; _appliedRole = role;
+            _total = result.Total;
+            _hasNext = result.HasNext;
+            _roleDrafts.Clear();
+            _error = null;
+        }
+        catch (Exception ex) { _admins.Clear(); _total = 0; _hasNext = false; _error = SafeUiError.Report(ex, Logger, "accounts.read", "Accounts could not be loaded. Refresh or sign in again."); }
+        finally { _loading = false; _fetching = false; }
+    }
+
+    private List<AdminListItem> Filtered() => _admins;
+
+    private void StageRole(string email, string role) => _roleDrafts[email] = role;
+
+    private static string RandomString(int len)
+    {
+        return SecurePasswordGenerator.Generate(Math.Max(16, len));
+    }
+
+    private async Task Create()
+    {
+        if (_acting || _fetching) return;
+        _actionError = null;
+        if (string.IsNullOrEmpty(_newEmail) || string.IsNullOrEmpty(_newPassword))
+        {
+            _actionError = "Email and password are required.";
+            return;
+        }
+        _acting = true;
+        try
+        {
+            var result = await Guard.RunOwner("account.create", "accounts", _ => AdminSvc.SignupAsync(_newEmail, _newPassword, _newRole));
+            if (!result.Ok) { _actionError = result.Error; return; }
+            _notice = "User created";
+            _newEmail = _newPassword = string.Empty;
+            _newRole = "admin";
+            _createOpen = false;
+            await Load();
+        }
+        catch (Exception ex) { _actionError = SafeUiError.Report(ex, Logger, "accounts.create", "Account could not be created. Refresh or sign in again."); }
+        finally { _acting = false; }
+    }
+
+    private async Task UpdateRole(string email, string role)
+    {
+        if (_acting || _fetching) return;
+        _acting = true;
+        try
+        {
+            var result = await Guard.RunOwner("account.role", email, _ => AdminSvc.UpdateRoleAsync(email, role));
+            if (!result.Ok) { _actionError = result.Error; return; }
+            _notice = $"Updated {email}";
+            await Load();
+        }
+        catch (Exception ex) { _actionError = SafeUiError.Report(ex, Logger, "accounts.role", "Role could not be updated. Refresh or sign in again."); }
+        finally { _acting = false; }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_acting || _fetching) return;
+        var target = _pendingDelete;
+        _pendingDelete = null;
+        if (target is null) return;
+        _acting = true;
+        try
+        {
+            var result = await Guard.RunOwner("account.delete", target, _ => AdminSvc.RemoveAdminAsync(target));
+            if (!result.Ok) { _actionError = result.Error; return; }
+            _notice = $"Removed {target}";
+            await Load();
+        }
+        catch (Exception ex) { _actionError = SafeUiError.Report(ex, Logger, "accounts.delete", "Account could not be removed. Refresh or sign in again."); }
+        finally { _acting = false; }
+    }
+
+    private void OpenReset(string email)
+    {
+        _resetEmail = email;
+        _resetPassword = RandomString(14);
+        _resetError = null;
+        _resetOpen = true;
+    }
+
+    private async Task ConfirmReset()
+    {
+        if (_resetSaving || _acting || _fetching) return;
+        if (string.IsNullOrEmpty(_resetEmail) || string.IsNullOrEmpty(_resetPassword))
+        {
+            _resetError = "Email and password are required";
+            return;
+        }
+        _resetSaving = true;
+        try
+        {
+            var result = await Guard.RunOwner("account.password.reset", _resetEmail, _ => AdminSvc.ResetPasswordAsync(_resetEmail, _resetPassword));
+            if (!result.Ok) { _resetError = result.Error; return; }
+            _notice = $"Password reset for {_resetEmail}";
+            _resetOpen = false;
+        }
+        catch (Exception ex) { _resetError = SafeUiError.Report(ex, Logger, "accounts.password", "Password could not be reset. Refresh or sign in again."); }
+        finally { _resetSaving = false; }
+    }
+}

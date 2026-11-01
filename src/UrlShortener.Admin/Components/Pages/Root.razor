@@ -1,0 +1,9 @@
+@page "/"
+@inject NavigationManager Nav
+
+@* Bare host has no landing page; send it to /admin (which bounces to /signin
+   when unauthenticated, or the dashboard when logged in). *@
+
+@code {
+    protected override void OnInitialized() => Nav.NavigateTo("/admin", forceLoad: false);
+}

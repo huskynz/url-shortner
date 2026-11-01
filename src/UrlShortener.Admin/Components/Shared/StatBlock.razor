@@ -1,0 +1,20 @@
+<div class="admin-metric">
+    <div class="admin-metric-content">
+        <div>
+            <p class="admin-metric-label">@Label</p>
+            <p class="admin-metric-value">@Value</p>
+            @if (!string.IsNullOrEmpty(Detail))
+            {
+                <p class="admin-metric-detail">@Detail</p>
+            }
+        </div>
+        <div class="admin-metric-icon"><AdminIcon Name="@(Icon == "🔗" ? "link" : Icon == "⏱" ? "clock" : Icon == "✓" ? "check" : "chart")" /></div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public string? Detail { get; set; }
+    [Parameter] public string Icon { get; set; } = string.Empty;
+}

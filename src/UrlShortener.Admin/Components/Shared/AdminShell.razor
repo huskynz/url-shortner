@@ -1,0 +1,43 @@
+@inject NavigationManager Nav
+@inject IOptions<UrlShortenerOptions> Options
+
+<div class="admin-workspace">
+    <a class="admin-skip" href="#admin-main">Skip to content</a>
+    <header class="header header-6 admin-topbar">
+        <div class="branding"><a href="/admin/dashboard" class="nav-link admin-brand"><img src="https://serv.husky.nz/logo/default.png" alt="HuskyNZ" width="36" height="36" /><span class="title">HuskyNZ URL Shortener Admin</span></a></div>
+        <div class="header-actions"><a href="/set-password" class="nav-link">My account</a><form method="post" action="/auth/logout"><AntiforgeryToken /><button type="submit" class="nav-link">Sign out</button></form></div>
+        <button class="admin-menu-trigger btn btn-link" type="button" aria-label="Toggle navigation" aria-controls="admin-navigation-panel" aria-expanded="false" onclick="urlShortener.toggleNavigation(this)"><AdminIcon Name="menu" />Menu</button>
+    </header>
+    <aside class="admin-sidebar sidenav" id="admin-navigation-panel">
+        <nav aria-label="Administration" class="admin-navigation nav-group">
+            @foreach (var item in NavItems)
+            {
+                var active = CurrentPath.StartsWith(item.Href, StringComparison.OrdinalIgnoreCase);
+                <a href="@item.Href" data-enhance-nav="@(item.Href == "/admin/api" ? "false" : "true")" aria-current="@(active ? "page" : null)" class="nav-link @(active ? "active admin-nav-active" : "")"><AdminIcon Name="@item.Icon" />@item.Label</a>
+            }
+            <AuthorizeView Policy="@AuthConstants.OwnerSessionPolicy"><a href="/admin/keys" aria-current="@(CurrentPath.StartsWith("/admin/keys") ? "page" : null)" class="nav-link @(CurrentPath.StartsWith("/admin/keys") ? "active admin-nav-active" : "")"><AdminIcon Name="key" />API keys</a></AuthorizeView>
+        </nav>
+        <div class="admin-sidebar-footer">
+            <div class="mobile-account-actions"><a href="/set-password">My account</a><form method="post" action="/auth/logout"><AntiforgeryToken /><button class="btn btn-link" type="submit">Sign out</button></form></div>
+            <a href="/openapi/v1.json" download="api-v1.json" data-enhance-nav="false"><AdminIcon Name="download" />API specification</a>
+            <small>@Options.Value.Environment · @Options.Value.VersionNumber</small>
+        </div>
+    </aside>
+    <div class="admin-main-column">
+        <main id="admin-main" class="admin-content">@ChildContent</main>
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private record NavItem(string Href, string Label, string Icon);
+    private static readonly NavItem[] NavItems =
+    {
+        new("/admin/dashboard", "Dashboard", "dashboard"),
+        new("/admin/urls", "URLs", "link"),
+        new("/admin/stats", "Stats", "chart"),
+        new("/admin/users", "Users", "users"),
+        new("/admin/api", "API explorer", "code"),
+    };
+    private string CurrentPath => new Uri(Nav.Uri).AbsolutePath;
+}

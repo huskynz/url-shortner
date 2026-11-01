@@ -1,0 +1,23 @@
+@page "/signin"
+@using Microsoft.AspNetCore.Components.Web
+<PageTitle>Sign in · HuskyNZ URL Shortener Admin</PageTitle>
+<div class="admin-auth">
+    <AuthStory />
+    <main class="admin-auth-main">
+        <div class="admin-auth-card">
+            <h1>Sign in</h1>
+            @if (Error is not null) { <p role="alert" class="workspace-alert">Invalid email or password.</p> }
+            <form method="post" action="/auth/login">
+                <AntiforgeryToken />
+                <input type="hidden" name="callbackUrl" value="@(CallbackUrl ?? "/admin/dashboard")" />
+                <label class="workspace-field">Email<input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
+                <label class="workspace-field">Password<input type="password" name="password" required autocomplete="current-password" maxlength="@AdminPassword.MaxLength" /></label>
+                <button type="submit" class="button-primary">Sign in</button>
+            </form>
+        </div>
+    </main>
+</div>
+@code {
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+    [SupplyParameterFromQuery(Name = "callbackUrl")] public string? CallbackUrl { get; set; }
+}

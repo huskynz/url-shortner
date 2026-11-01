@@ -1,0 +1,46 @@
+<section class="stats-card traffic-card">
+    <div class="stats-card-heading">
+        <div>
+            <p class="stats-eyebrow">Traffic</p>
+            <h2>Visits over time</h2>
+        </div>
+        <span class="stats-badge">@RangeLabel · @BucketLabel buckets (UTC)</span>
+    </div>
+    @if (Data is { Count: > 0 })
+    {
+        <div class="traffic-summary">
+            <strong>@Data.Sum(d => d.Count).ToString("N0") <span>dated visits</span></strong>
+            <span>@Data[0].Date — @Data[^1].Date</span>
+        </div>
+        <AnalyticsCanvas Labels="_labels" Values="_values" EnableZoom="true" ViewVersion="ViewVersion" Label="Visits over time across the entire selected period" />
+        <div class="traffic-footer">
+            <span><i class="stats-dot"></i> Entire selected period included in source data · quiet periods shown as zero</span>
+            <span>Hover to explore</span>
+        </div>
+        <ChartDataTable Labels="_labels" Values="_values" Summary="View all date buckets" Title="@($"Visits in every UTC {DateBucket} bucket")" />
+    }
+    else
+    {
+        <div class="stats-empty"><strong>No dated visits yet</strong><p>Traffic will appear here once visits with timestamps are recorded.</p></div>
+    }
+    @if (UndatedVisits > 0)
+    {
+        <p class="stats-note">@UndatedVisits.ToString("N0") visits have no timestamp; included in totals and category charts.</p>
+    }
+</section>
+
+@code {
+    [Parameter] public List<DateCount>? Data { get; set; }
+    [Parameter] public string DateBucket { get; set; } = "day";
+    [Parameter] public string RangeLabel { get; set; } = "All time";
+    [Parameter] public int UndatedVisits { get; set; }
+    [Parameter] public int ViewVersion { get; set; }
+    private string[] _labels = [];
+    private int[] _values = [];
+    private string BucketLabel => DateBucket == "year" ? "Yearly" : DateBucket == "month" ? "Monthly" : DateBucket == "hour" ? "Hourly" : "Daily";
+    protected override void OnParametersSet()
+    {
+        _labels = Data?.Select(d => d.Date).ToArray() ?? [];
+        _values = Data?.Select(d => d.Count).ToArray() ?? [];
+    }
+}

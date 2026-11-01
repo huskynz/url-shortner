@@ -1,0 +1,25 @@
+<section class="stats-card">
+    <div class="stats-card-heading"><div><p class="stats-eyebrow">@Eyebrow</p><h2>@Title</h2><p class="stats-note">@Description</p></div><span class="stats-badge">@RangeLabel</span></div>
+    @if (Values.Any(value => value > 0))
+    {
+        <AnalyticsCanvas Kind="@Kind" Labels="Labels" Values="Values" Label="@Title" EnableZoom="@(Kind == "line")" ViewVersion="ViewVersion" />
+        <ChartDataTable Labels="Labels" Values="Values" Title="@Title" CategoryLabel="@CategoryLabel" ValueLabel="@ValueLabel" />
+    }
+    else
+    {
+        <div class="stats-empty"><strong>No dated visits in this period</strong><p>Visits with timestamps will populate this chart.</p></div>
+    }
+</section>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Visits";
+    [Parameter] public string Eyebrow { get; set; } = "Traffic patterns";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public string Kind { get; set; } = "bar";
+    [Parameter] public string RangeLabel { get; set; } = "All time";
+    [Parameter] public string CategoryLabel { get; set; } = "UTC time";
+    [Parameter] public string ValueLabel { get; set; } = "Visits";
+    [Parameter] public string[] Labels { get; set; } = [];
+    [Parameter] public int[] Values { get; set; } = [];
+    [Parameter] public int ViewVersion { get; set; }
+}

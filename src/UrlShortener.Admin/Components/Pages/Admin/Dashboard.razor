@@ -1,0 +1,181 @@
+@page "/admin/dashboard"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = AuthConstants.AdminSessionPolicy)]
+@inject AnalyticsService Analytics
+@inject AdminActionGuard Guard
+@inject ILogger<Dashboard> Logger
+@inject IOptions<UrlShortenerOptions> Options
+@using System.Security.Claims
+
+<PageTitle>Dashboard · HuskyNZ URL Shortener Admin</PageTitle>
+
+<AdminShell>
+    <div class="dashboard-workspace">
+        <PageHeader Title="Analytics overview" Eyebrow="Dashboard" Description="Traffic and link availability.">
+            <Actions><a href="/admin/stats" class="workspace-button">Explore traffic</a><a href="/admin/urls" class="workspace-button button-primary"><AdminIcon Name="link" />Manage links</a></Actions>
+        </PageHeader>
+
+        @if (_analytics is not null)
+        {
+        <div class="dashboard-metrics">
+            <StatBlock Label="Total visits" Value="@((_analytics?.TotalVisits ?? 0).ToString("N0"))" Detail="@($"{VisitDelta:+#;-#;0} vs last")" Icon="📊" />
+            <StatBlock Label="Active URLs" Value="@((_analytics?.ActiveUrls ?? 0).ToString())" Detail="@($"{_analytics?.DeprecatedUrls ?? 0} deprecated")" Icon="✓" />
+            <StatBlock Label="Recent hits" Value="@((_analytics?.RecentVisits.Count ?? 0).ToString())" Detail="Last captured window" Icon="🔗" />
+            <StatBlock Label="Window" Value="@TrendLabel" Detail="Traffic range" Icon="⏱" />
+        </div>
+        }
+
+        <LinkWarnings RefreshVersion="@_warningsVersion" />
+        <section class="dashboard-traffic space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <p class="text-[11px] uppercase tracking-[0.16em] text-[#8a8a8a] mb-1">Analytics</p>
+                    <h2 class="text-lg font-semibold">Traffic snapshot</h2>
+                </div>
+                <div class="stats-ranges" role="group" aria-label="Analytics date range">
+                    @foreach (var range in Ranges)
+                    {
+                        <button @onclick="() => SetRange(range.Key)"
+                                disabled="@_loading" aria-pressed="@((_timeRange == range.Key).ToString().ToLowerInvariant())"
+                                class="px-3 py-1.5 border text-sm @(_timeRange == range.Key ? "border-[#4a4a4a] bg-[#1f1f1f] text-[#f0f0f0]" : "border-[#2d2d2d] bg-[#0f0f0f] text-[#c4c4c4]")">
+                            @range.Label
+                        </button>
+                    }
+                    <button @onclick="Load" disabled="@_loading" class="px-3 py-1.5 border border-[#3a3a3a] bg-[#1b1b1b] text-sm text-[#f0f0f0] hover:bg-[#242424] transition">
+                        @(_loading ? "Syncing..." : "Refresh")
+                    </button>
+                </div>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div role="alert" class="workspace-alert">@_error
+                    @if (_analytics is not null) { <span>Previous data is stale and still shown for @TrendLabel.</span> }
+                    <button @onclick="Load" disabled="@_loading" class="workspace-button">Try again</button>
+                </div>
+            }
+            @if (_loading)
+            {
+                <p class="text-slate-400 text-sm">Syncing analytics...</p>
+            }
+            else if (_analytics is not null)
+            {
+                <TrafficChart Data="_analytics.VisitsOverTime" DateBucket="@_analytics.DateBucket" UndatedVisits="_analytics.UndatedVisits" RangeLabel="@TrendLabel" />
+                <div class="dashboard-columns">
+                    <section class="workspace-panel">
+                        <div class="section-heading"><h2>Top performers</h2><a href="/admin/stats">All distributions</a></div>
+                        <ul class="dashboard-list">
+                            @foreach (var row in AnalyticsGroups.Compact(_analytics.VisitStats, 5))
+                            {
+                                <li><span>@(row.IsOther ? "Other links" : $"/{row.ShortPath}")</span><strong>@row.Count.ToString("N0") visits</strong></li>
+                            }
+                            @if (_analytics.VisitStats.Count == 0)
+                            {
+                                <li>Send traffic to see analytics.</li>
+                            }
+                        </ul>
+                    </section>
+                    <section class="workspace-panel">
+                        <div class="section-heading"><h2>Recent traffic</h2><span class="workspace-help">Last captured window</span></div>
+                        <ul class="dashboard-list">
+                            @foreach (var row in _analytics.RecentVisits)
+                            {
+                                <li>
+                                    <div>
+                                        <p class="text-white font-medium flex items-center gap-2">/@(row.ShortPath ?? "unknown")
+                                            @if (!string.IsNullOrEmpty(row.Environment)) { <Badge Tone="neutral">@row.Environment</Badge> }
+                                        </p>
+                                        <small>@(row.VisitedAt?.ToString("u") ?? "Unknown time") UTC</small>
+                                    </div>
+                                    <div class="text-right text-xs text-slate-400">
+                                        <p>@(row.IpAddress ?? "anon")</p>
+                                        @if (!string.IsNullOrEmpty(row.VersionNumber)) { <p class="text-slate-500">v@row.VersionNumber</p> }
+                                    </div>
+                                </li>
+                            }
+                            @if (_analytics.RecentVisits.Count == 0)
+                            {
+                                <li>Quiet right now. Waiting for new visits.</li>
+                            }
+                        </ul>
+                    </section>
+                </div>
+            }
+            else
+            {
+                <p class="text-slate-400 text-sm">@(_error ?? "No analytics yet.")</p>
+            }
+        </section>
+    </div>
+</AdminShell>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private record Range(int Key, string Label);
+    private static readonly Range[] Ranges = { new(0, "All time"), new(7, "7d"), new(30, "30d"), new(90, "90d") };
+
+    private AnalyticsResult? _analytics;
+    private int _timeRange;
+    private bool _loading = true;
+    private bool _fetching;
+    private string? _error;
+    private string? _role;
+    private string? _email;
+
+    private string TrendLabel => Ranges.FirstOrDefault(r => r.Key == _timeRange)?.Label ?? "All time";
+
+    private int VisitDelta
+    {
+        get
+        {
+            var pts = _analytics?.VisitsOverTime;
+            if (pts is null || pts.Count == 0) return 0;
+            var current = pts[^1].Count;
+            var previous = pts.Count >= 2 ? pts[^2].Count : 0;
+            return current - previous;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            _role = state.User.FindFirstValue(ClaimTypes.Role);
+            _email = state.User.FindFirstValue(ClaimTypes.Email);
+        }
+        await Load();
+    }
+
+    private Task SetRange(int range) => LoadRange(range);
+
+    private int _warningsVersion;
+    private Task Load() => LoadRange(_timeRange, refreshWarnings: true);
+
+    private async Task LoadRange(int range, bool refreshWarnings = false)
+    {
+        // Single-flight: range/refresh events cannot overlap, including queued events.
+        if (_fetching) return;
+        _fetching = true;
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            _analytics = await Guard.Run("analytics.read", "dashboard", _ => Analytics.GetAnalyticsAsync(range, refresh: true));
+            _timeRange = range;
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            if (ex is ApiFault { Status: 401 or 403 }) _analytics = null;
+            _error = SafeUiError.Report(ex, Logger, "dashboard.read", "Analytics could not be loaded. Try refreshing or sign in again.");
+        }
+        finally
+        {
+            if (refreshWarnings) _warningsVersion++;
+            _loading = false;
+            _fetching = false;
+        }
+    }
+}

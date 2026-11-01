@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ApiContractOnly controls this host's content, not Shared. Propagating it
+         creates a second Shared build instance writing the same bin/obj files. -->
+    <ProjectReference Include="..\UrlShortener.Shared\UrlShortener.Shared.csproj" GlobalPropertiesToRemove="ApiContractOnly" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.4" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Assets\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Referencing the route/DTO assembly from Admin must not publish the API's
+       host configuration into Admin or collide with Admin appsettings files. -->
+  <ItemGroup Condition="'$(ApiContractOnly)' == 'true'">
+    <Content Update="appsettings*.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+</Project>

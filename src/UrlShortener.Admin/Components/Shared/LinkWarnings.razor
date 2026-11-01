@@ -1,0 +1,51 @@
+@inject ApiV1Links Links
+@inject AdminActionGuard Guard
+@inject ILogger<LinkWarnings> Logger
+
+@if (_error is not null || _total > 0 || (_loading && _observed is null))
+{
+<section class="attention-panel" aria-label="Link availability warnings" aria-busy="@_loading">
+    <AdminIcon Name="warning" />
+    <div class="attention-content">
+        <h2>@(_error is not null ? "Link warning check unavailable" : "Links needing attention")</h2>
+        @if (_loading) { <p role="status">Checking availability and quotas…</p> }
+        else if (_error is not null) { <p role="alert" class="workspace-alert">@_error</p><p>Current warning counts are unknown. Review links directly or retry the check.</p> }
+        else
+        {
+            <p>@_total @(_total == 1 ? "link" : "links") @if (_total > 10) { <span>· first 10 shown</span> }</p>
+            @if (_total > 0) { <ul class="attention-list">@foreach (var link in _links) { <li><a href="@($"/admin/urls/{Uri.EscapeDataString(link.ShortPath)}/analytics")">/@link.ShortPath</a><span>@(link.Expiring ? $"expires {link.ScheduleEnd:u} UTC" : "") @(link.NearQuota ? $" · {link.UsageQuota - link.UsageCount} admissions left" : "")</span></li> }</ul> }
+            <p class="inventory-freshness">Checked @_observed?.ToString("u") UTC</p>
+        }
+        <details><summary>What is checked?</summary><p>Expiring within 7 days, or at most 5 admissions / 10% of quota remaining. Unavailable links are excluded; warnings never change limits.</p></details>
+    </div>
+    <div class="attention-actions"><a class="workspace-button" href="/admin/urls">Review links</a><button class="button-quiet" @onclick="Load" disabled="@_loading"><AdminIcon Name="refresh" />Refresh warnings</button></div>
+</section>
+}
+
+@code {
+    private List<LinkView> _links = [];
+    private int _total;
+    private bool _loading;
+    private string? _error;
+    private DateTimeOffset? _observed;
+    [Parameter] public int RefreshVersion { get; set; }
+    private int _lastRefresh = -1;
+    protected override Task OnParametersSetAsync()
+    {
+        if (_lastRefresh == RefreshVersion) return Task.CompletedTask;
+        _lastRefresh = RefreshVersion;
+        return Load();
+    }
+    private async Task Load()
+    {
+        if (_loading) return;
+        _loading = true; _error = null;
+        try
+        {
+            var result = await Guard.Run("url.warnings", "dashboard", user => Links.List(1, 10, null, "warning", null, ApiV1Access.Private(user), default));
+            _links = result.Items; _total = result.Total; _observed = DateTimeOffset.UtcNow;
+        }
+        catch (Exception ex) { _links = []; _observed = null; _error = SafeUiError.Report(ex, Logger, "link.warnings", "Warnings unavailable. Refresh to get current limits."); }
+        finally { _loading = false; }
+    }
+}
